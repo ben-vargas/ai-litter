@@ -88,10 +88,58 @@ final class WatchNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
     }
 }
 
+/// Background refresh cadence for the watch's App Group hydrate task. 15
+/// minutes is the upper bound watchOS will honor reliably; complications
+/// stay fresh during long idle stretches without burning the budget on
+/// short turns.
+let watchBackgroundRefreshInterval: TimeInterval = 15 * 60
+
+/// `WKApplicationDelegate` that owns the background-refresh lifecycle so
+/// the watch can rehydrate its App Group snapshot while suspended. Routes
+/// `WKApplicationRefreshBackgroundTask`s to `forceHydrateFromAppGroup`
+/// then reschedules the next refresh.
+final class LitterWatchAppDelegate: NSObject, WKApplicationDelegate {
+    static let shared = LitterWatchAppDelegate()
+
+    func applicationDidFinishLaunching() {
+        Self.scheduleNextRefresh()
+    }
+
+    func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
+        for task in backgroundTasks {
+            switch task {
+            case let refresh as WKApplicationRefreshBackgroundTask:
+                Task { @MainActor in
+                    WatchAppStore.shared.forceHydrateFromAppGroup()
+                    Self.scheduleNextRefresh()
+                    refresh.setTaskCompletedWithSnapshot(false)
+                }
+            default:
+                task.setTaskCompletedWithSnapshot(false)
+            }
+        }
+    }
+
+    static func scheduleNextRefresh(now: Date = .now) {
+        let preferred = now.addingTimeInterval(watchBackgroundRefreshInterval)
+        WKApplication.shared().scheduleBackgroundRefresh(
+            withPreferredDate: preferred,
+            userInfo: nil
+        ) { error in
+            if let error {
+                #if DEBUG
+                print("[watch] scheduleBackgroundRefresh failed: \(error.localizedDescription)")
+                #endif
+            }
+        }
+    }
+}
+
 /// Root @main for the Litter Watch app. Vertically paginated TabView
 /// makes the three hero surfaces reachable via crown/swipe.
 @main
 struct LitterWatchApp: App {
+    @WKApplicationDelegateAdaptor(LitterWatchAppDelegate.self) private var appDelegate
     @StateObject private var store = WatchAppStore.shared
     @StateObject private var theme = WatchThemeStore.shared
 

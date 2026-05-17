@@ -82,8 +82,11 @@ targets:
       - path: Sources/LitterLiveActivity/CodexTurnLiveActivity.swift
       - path: Sources/LitterWatch/Models/WatchModels.swift
       - path: Sources/LitterWatch/Models/WatchSize.swift
+      - path: Sources/LitterWatch/Models/WatchHapticDetector.swift
+      - path: Sources/LitterWatch/Models/WatchSnapshotStore.swift
       - path: Sources/LitterWatchComplications/LitterServerListPayload.swift
       - path: Sources/LitterWatchComplications/LitterComplicationEntry.swift
+      - path: Sources/LitterWatchComplications/LitterRunningTurnPayload.swift
     resources:
       - path: Sources/Litter/Resources/Fonts
       - path: Sources/Litter/Resources/Themes
