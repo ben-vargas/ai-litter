@@ -79,7 +79,24 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 actions: [],
                 intentIdentifiers: [],
                 options: [.allowAnnouncement]
-            )
+            ),
+            UNNotificationCategory(
+                identifier: WatchApprovalNotification.categoryIdentifier,
+                actions: [
+                    UNNotificationAction(
+                        identifier: WatchApprovalNotification.allowActionIdentifier,
+                        title: "Allow",
+                        options: []
+                    ),
+                    UNNotificationAction(
+                        identifier: WatchApprovalNotification.denyActionIdentifier,
+                        title: "Deny",
+                        options: [.destructive]
+                    ),
+                ],
+                intentIdentifiers: [],
+                options: [.customDismissAction]
+            ),
         ])
         OrientationResponder.shared.start()
         DispatchQueue.main.async {
@@ -250,6 +267,30 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             "user opened notification",
             payloadJson: notificationPayloadJson(response.notification.request.content.userInfo)
         )
+
+        let info = response.notification.request.content.userInfo
+        let actionId = response.actionIdentifier
+        if actionId == WatchApprovalNotification.allowActionIdentifier ||
+            actionId == WatchApprovalNotification.denyActionIdentifier,
+            let requestId = info[WatchApprovalNotification.requestIdKey] as? String {
+            let approve = actionId == WatchApprovalNotification.allowActionIdentifier
+            Task { @MainActor in
+                do {
+                    try await AppModel.shared.store.respondToApproval(
+                        requestId: requestId,
+                        decision: approve ? .accept : .decline
+                    )
+                } catch {
+                    LLog.error(
+                        "push",
+                        "approval action dispatch failed: \(error.localizedDescription)"
+                    )
+                }
+                completionHandler()
+            }
+            return
+        }
+
         if let key = AppLifecycleController.notificationThreadKey(
             from: response.notification.request.content.userInfo
         ) {
