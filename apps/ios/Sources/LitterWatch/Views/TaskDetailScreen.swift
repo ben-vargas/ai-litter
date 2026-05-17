@@ -5,6 +5,7 @@ import SwiftUI
 /// the phone causes the next snapshot to carry this task's transcript.
 struct TaskDetailScreen: View {
     @EnvironmentObject var store: WatchAppStore
+    @EnvironmentObject var theme: WatchThemeStore
     let task: WatchTask
 
     var body: some View {
@@ -18,13 +19,13 @@ struct TaskDetailScreen: View {
 
                 Text(current.title)
                     .font(WatchTheme.mono(13, weight: .bold))
-                    .foregroundStyle(WatchTheme.text)
+                    .foregroundStyle(theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let subtitle = current.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(WatchTheme.mono(10))
-                        .foregroundStyle(WatchTheme.dim)
+                        .foregroundStyle(theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -36,20 +37,20 @@ struct TaskDetailScreen: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(WatchTheme.ginger)
+                                .foregroundStyle(theme.warning)
                             Text("review approval")
                                 .font(WatchTheme.mono(11, weight: .bold))
-                                .foregroundStyle(WatchTheme.text)
+                                .foregroundStyle(theme.textPrimary)
                             Spacer()
                         }
                         .padding(.vertical, 6)
                         .padding(.horizontal, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(WatchTheme.ginger.opacity(0.12))
+                                .fill(theme.warning.opacity(0.12))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
-                                        .stroke(WatchTheme.ginger.opacity(0.4), lineWidth: 1)
+                                        .stroke(theme.warning.opacity(0.4), lineWidth: 1)
                                 )
                         )
                     }
@@ -89,45 +90,45 @@ struct TaskDetailScreen: View {
         .onAppear {
             store.focus(on: current)
         }
-        .containerBackground(WatchTheme.bg.gradient, for: .navigation)
+        .containerBackground(theme.backgroundGradient, for: .navigation)
     }
 
     private func header(for task: WatchTask) -> some View {
         HStack(spacing: 6) {
             switch task.status {
             case .running:
-                PulsingDot(color: WatchTheme.ginger, size: 7)
+                PulsingDot(color: theme.accent, size: 7)
                 Text("running")
                     .font(WatchTheme.mono(10, weight: .bold))
-                    .foregroundStyle(WatchTheme.ginger)
+                    .foregroundStyle(theme.accent)
             case .needsApproval:
                 Image(systemName: "exclamationmark.circle.fill")
                     .font(.system(size: 11))
-                    .foregroundStyle(WatchTheme.ginger)
+                    .foregroundStyle(theme.warning)
                 Text("needs approval")
                     .font(WatchTheme.mono(10, weight: .bold))
-                    .foregroundStyle(WatchTheme.ginger)
+                    .foregroundStyle(theme.warning)
             case .idle:
-                Circle().fill(WatchTheme.dim).frame(width: 6, height: 6)
+                Circle().fill(theme.textSecondary).frame(width: 6, height: 6)
                 Text("idle")
                     .font(WatchTheme.mono(10, weight: .bold))
-                    .foregroundStyle(WatchTheme.dim)
+                    .foregroundStyle(theme.textSecondary)
             case .error:
-                Circle().fill(WatchTheme.danger).frame(width: 6, height: 6)
+                Circle().fill(theme.danger).frame(width: 6, height: 6)
                 Text("error")
                     .font(WatchTheme.mono(10, weight: .bold))
-                    .foregroundStyle(WatchTheme.danger)
+                    .foregroundStyle(theme.danger)
             }
             Spacer()
             Text(task.serverName)
                 .font(WatchTheme.mono(9))
-                .foregroundStyle(WatchTheme.dim)
+                .foregroundStyle(theme.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
             if !task.relativeTime.isEmpty {
                 Text(task.relativeTime)
                     .font(WatchTheme.mono(9))
-                    .foregroundStyle(WatchTheme.dim)
+                    .foregroundStyle(theme.textMuted)
             }
         }
     }
@@ -140,21 +141,22 @@ struct TaskDetailScreen: View {
                 .font(WatchTheme.mono(11, weight: .bold))
         }
         .frame(maxWidth: .infinity, minHeight: 30)
-        .foregroundStyle(accent ? WatchTheme.onAccent : WatchTheme.text)
+        .foregroundStyle(accent ? theme.textOnAccent : theme.textPrimary)
         .background(
             Capsule().fill(accent
-                ? LinearGradient(colors: [WatchTheme.gingerLight, WatchTheme.ginger],
+                ? LinearGradient(colors: [theme.accentSoft, theme.accent],
                                  startPoint: .top, endPoint: .bottom)
-                : LinearGradient(colors: [WatchTheme.surfaceHi, WatchTheme.surfaceHi],
+                : LinearGradient(colors: [theme.surfaceLight, theme.surfaceLight],
                                  startPoint: .top, endPoint: .bottom))
             .overlay(
-                Capsule().stroke(accent ? Color.clear : WatchTheme.borderHi, lineWidth: 1)
+                Capsule().stroke(accent ? Color.clear : theme.borderHi, lineWidth: 1)
             )
         )
     }
 }
 
 private struct StepRow: View {
+    @EnvironmentObject var theme: WatchThemeStore
     let step: WatchTaskStep
 
     var body: some View {
@@ -169,7 +171,7 @@ private struct StepRow: View {
                 if !step.arg.isEmpty {
                     Text(step.arg)
                         .font(WatchTheme.mono(9))
-                        .foregroundStyle(WatchTheme.dimMore)
+                        .foregroundStyle(theme.textMuted)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -180,14 +182,15 @@ private struct StepRow: View {
 
     private func color(for state: WatchTaskStep.State) -> Color {
         switch state {
-        case .active:  return WatchTheme.ginger
-        case .done:    return WatchTheme.text
-        case .pending: return WatchTheme.dim
+        case .active:  return theme.accent
+        case .done:    return theme.textPrimary
+        case .pending: return theme.textSecondary
         }
     }
 }
 
 private struct StepBullet: View {
+    @EnvironmentObject var theme: WatchThemeStore
     let state: WatchTaskStep.State
     @State private var pulse = false
 
@@ -200,10 +203,10 @@ private struct StepBullet: View {
             case .done:
                 Image(systemName: "checkmark")
                     .font(.system(size: 6, weight: .heavy))
-                    .foregroundStyle(WatchTheme.success)
+                    .foregroundStyle(theme.success)
             case .active:
                 Circle()
-                    .fill(WatchTheme.ginger)
+                    .fill(theme.accent)
                     .frame(width: 4, height: 4)
                     .opacity(pulse ? 0.3 : 1)
                     .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
@@ -216,17 +219,17 @@ private struct StepBullet: View {
 
     private var fill: Color {
         switch state {
-        case .done:    return WatchTheme.success.opacity(0.15)
-        case .active:  return WatchTheme.ginger.opacity(0.2)
-        case .pending: return WatchTheme.surfaceHi
+        case .done:    return theme.success.opacity(0.15)
+        case .active:  return theme.accent.opacity(0.2)
+        case .pending: return theme.surfaceLight
         }
     }
 
     private var stroke: Color {
         switch state {
-        case .done:    return WatchTheme.success.opacity(0.4)
-        case .active:  return WatchTheme.ginger
-        case .pending: return WatchTheme.borderHi
+        case .done:    return theme.success.opacity(0.4)
+        case .active:  return theme.accent
+        case .pending: return theme.borderHi
         }
     }
 }
@@ -236,6 +239,7 @@ private struct StepBullet: View {
     NavigationStack {
         TaskDetailScreen(task: WatchPreviewFixtures.tasks[0])
             .environmentObject(WatchAppStore.previewStore())
+            .environmentObject(WatchThemeStore.shared)
     }
 }
 
@@ -243,6 +247,7 @@ private struct StepBullet: View {
     NavigationStack {
         TaskDetailScreen(task: WatchPreviewFixtures.tasks[1])
             .environmentObject(WatchAppStore.previewStore())
+            .environmentObject(WatchThemeStore.shared)
     }
 }
 #endif

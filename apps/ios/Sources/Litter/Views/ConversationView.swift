@@ -204,6 +204,7 @@ struct ConversationView: View {
     private func sendMessage(
         _ text: String,
         attachmentImage: UIImage?,
+        fileAttachments: [ComposerFileAttachment],
         skillMentions: [SkillMentionSelection],
         pluginMentions: [PluginMentionSelection]
     ) {
@@ -219,6 +220,7 @@ struct ConversationView: View {
                 let payload = try makeComposerPayload(
                     text: text,
                     attachmentImage: attachmentImage,
+                    fileAttachments: fileAttachments,
                     skillMentions: skillMentions,
                     pluginMentions: pluginMentions
                 )
@@ -248,6 +250,7 @@ struct ConversationView: View {
                 let payload = try makeComposerPayload(
                     text: text,
                     attachmentImage: nil,
+                    fileAttachments: [],
                     skillMentions: [],
                     pluginMentions: []
                 )
@@ -347,6 +350,7 @@ struct ConversationView: View {
     private func makeComposerPayload(
         text: String,
         attachmentImage: UIImage?,
+        fileAttachments: [ComposerFileAttachment],
         skillMentions: [SkillMentionSelection],
         pluginMentions: [PluginMentionSelection]
     ) throws -> AppComposerPayload {
@@ -365,6 +369,7 @@ struct ConversationView: View {
         return AppComposerPayload(
             text: text,
             additionalInputs: additionalInputs,
+            fileAttachments: fileAttachments,
             approvalPolicy: appState.launchApprovalPolicy(for: activeThreadKey),
             sandboxPolicy: appState.turnSandboxPolicy(for: activeThreadKey),
             model: pendingModelOverride,
@@ -408,7 +413,7 @@ private struct ConversationBottomChrome: View {
     let composer: ConversationComposerSnapshot
     @Binding var composerInputText: String
     @Binding var composerAttachedImage: UIImage?
-    let onSend: (String, UIImage?, [SkillMentionSelection], [PluginMentionSelection]) -> Void
+    let onSend: (String, UIImage?, [ComposerFileAttachment], [SkillMentionSelection], [PluginMentionSelection]) -> Void
     let onFileSearch: (String) async throws -> [FileSearchResult]
     var bottomInset: CGFloat = 0
     let onOpenConversation: ((ThreadKey) -> Void)?
@@ -1376,7 +1381,7 @@ private struct ConversationInputBar: View {
     @AppStorage("workDir") private var workDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.path ?? "/"
     @AppStorage("fastMode") private var fastMode = false
 
-    let onSend: (String, UIImage?, [SkillMentionSelection], [PluginMentionSelection]) -> Void
+    let onSend: (String, UIImage?, [ComposerFileAttachment], [SkillMentionSelection], [PluginMentionSelection]) -> Void
     let onFileSearch: (String) async throws -> [FileSearchResult]
     var bottomInset: CGFloat = 0
     let showModeChip: Bool
@@ -1386,6 +1391,7 @@ private struct ConversationInputBar: View {
 
     @Binding var inputText: String
     @Binding var attachedImage: UIImage?
+    @State private var attachedFiles: [ComposerFileAttachment] = []
     @State private var showAttachMenu = false
     @State private var showPhotoPicker = false
     @State private var showCamera = false
@@ -1498,7 +1504,8 @@ private struct ConversationInputBar: View {
             onOpenSettings: openAppSettings,
             onLoadSelectedPhoto: loadSelectedPhoto,
             onLoadSelectedFile: { url in
-                attachedImage = ConversationAttachmentSupport.loadImageFile(at: url)
+                guard let picked = ConversationAttachmentSupport.loadPickedFile(at: url) else { return }
+                applyPickedFile(picked)
             },
             onLoadExperimentalFeatures: loadExperimentalFeatures,
             onIsExperimentalFeatureEnabled: { featureId, fallback in
@@ -1522,6 +1529,7 @@ private struct ConversationInputBar: View {
             inputText = prefill.text
             composerSelectionRange = NSRange(location: (prefill.text as NSString).length, length: 0)
             attachedImage = nil
+            attachedFiles = []
             hideComposerPopups()
             appModel.clearComposerPrefill(id: prefill.id)
         }
@@ -1555,6 +1563,7 @@ private struct ConversationInputBar: View {
         VStack(spacing: 0) {
             ConversationComposerContentView(
                 attachedImage: attachedImage,
+                attachedFiles: attachedFiles,
                 collaborationMode: snapshot.collaborationMode,
                 activePlanProgress: snapshot.activePlanProgress,
                 pendingUserInputRequest: pendingUserInputRequest,
@@ -1571,6 +1580,7 @@ private struct ConversationInputBar: View {
                 voiceManager: voiceManager,
                 showAttachMenu: $showAttachMenu,
                 onClearAttachment: clearAttachment,
+                onRemoveFileAttachment: removeFileAttachment,
                 onRespondToPendingUserInput: respondToPendingUserInput,
                 onDismissPendingUserInput: dismissPendingUserInput,
                 onImplementPlan: { Task { await implementPlan() } },
@@ -1599,10 +1609,10 @@ private struct ConversationInputBar: View {
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
-            guard let image = urls.lazy.compactMap({ ConversationAttachmentSupport.loadImageFile(at: $0) }).first else {
+            guard let picked = urls.lazy.compactMap({ ConversationAttachmentSupport.loadPickedFile(at: $0) }).first else {
                 return false
             }
-            attachedImage = image
+            applyPickedFile(picked)
             return true
         }
         .dropDestination(for: Data.self) { items, _ in
@@ -1628,6 +1638,21 @@ private struct ConversationInputBar: View {
 
     private func clearAttachment() {
         attachedImage = nil
+    }
+
+    private func removeFileAttachment(_ file: ComposerFileAttachment) {
+        attachedFiles.removeAll { $0 == file }
+    }
+
+    private func applyPickedFile(_ picked: PickedComposerFile) {
+        switch picked {
+        case .image(let image):
+            attachedImage = image
+        case .file(let file):
+            if !attachedFiles.contains(file) {
+                attachedFiles.append(file)
+            }
+        }
     }
 
     private func respondToPendingUserInput(_ answers: [String: [String]]) {
@@ -1677,14 +1702,17 @@ private struct ConversationInputBar: View {
     private func handleSend() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let image = attachedImage
-        guard !text.isEmpty || image != nil else { return }
+        let files = attachedFiles
+        guard !text.isEmpty || image != nil || !files.isEmpty else { return }
         if let request = snapshot.pendingUserInputRequest {
             appState.dismissPendingUserInput(id: request.id)
         }
         if image == nil,
+           files.isEmpty,
            let invocation = parseSlashCommandInvocation(text) {
             inputText = ""
             attachedImage = nil
+            attachedFiles = []
             hideComposerPopups()
             isComposerFocused = false
             executeSlashCommand(invocation.command, args: invocation.args)
@@ -1692,12 +1720,13 @@ private struct ConversationInputBar: View {
         }
         inputText = ""
         attachedImage = nil
+        attachedFiles = []
         hideComposerPopups()
         isComposerFocused = false
         let skillMentions = collectSkillMentionsForSubmission(text)
         let pluginMentions = collectPluginMentionsForSubmission(text)
         pluginMentionSelections = []
-        onSend(text, image, skillMentions, pluginMentions)
+        onSend(text, image, files, skillMentions, pluginMentions)
     }
 
     private func dismissPendingUserInput() {
@@ -2034,6 +2063,7 @@ private struct ConversationInputBar: View {
         slashSuggestions = []
         inputText = ""
         attachedImage = nil
+        attachedFiles = []
         isComposerFocused = false
         executeSlashCommand(command, args: nil)
     }

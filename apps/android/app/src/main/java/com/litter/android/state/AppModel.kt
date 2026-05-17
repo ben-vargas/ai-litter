@@ -74,9 +74,10 @@ class AppModel private constructor(context: android.content.Context) {
     data class ComposerDraft(
         val text: String = "",
         val attachment: ComposerImageAttachment? = null,
+        val fileAttachments: List<ComposerFileAttachment> = emptyList(),
     ) {
         val isEmpty: Boolean
-            get() = text.isEmpty() && attachment == null
+            get() = text.isEmpty() && attachment == null && fileAttachments.isEmpty()
 
         companion object {
             val EMPTY = ComposerDraft()

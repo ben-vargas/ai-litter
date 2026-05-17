@@ -70,6 +70,16 @@ struct WatchTask: Identifiable, Hashable, Codable {
     let transcript: [WatchTranscriptTurn]
     /// If this task has a pending approval, its request id.
     let pendingApprovalId: String?
+
+    // MARK: - iPhone-parity row enrichment (all optional for back-compat)
+    var model: String?
+    var cwd: String?
+    var turnCount: Int?
+    var toolCallCount: Int?
+    var diffAdditions: Int?
+    var diffDeletions: Int?
+    var contextPercent: Int?
+    var hasTurnActive: Bool?
 }
 
 /// Slice of realtime voice session state pushed to the watch so it can
@@ -89,11 +99,41 @@ struct WatchVoiceState: Codable, Hashable {
     let isMuted: Bool
 }
 
+/// Resolved theme palette the iPhone pushes to the watch so every screen can
+/// reflect the user's selected light/dark theme. Hex strings, "#RRGGBB".
+struct WatchThemePayload: Codable, Hashable {
+    enum AppearanceMode: String, Codable, Hashable {
+        case system, light, dark
+    }
+
+    let appearanceMode: AppearanceMode
+    /// Phone-resolved colorScheme at push time — already honors `.system`.
+    let isDark: Bool
+
+    let accent: String
+    let accentStrong: String
+    let textPrimary: String
+    let textSecondary: String
+    let textMuted: String
+    let surface: String
+    let surfaceLight: String
+    let border: String
+    let danger: String
+    let success: String
+    let warning: String
+    let textOnAccent: String
+    let backgroundTop: String
+    let backgroundBottom: String
+}
+
 /// Wire-format the iOS app pushes to the watch via `updateApplicationContext`.
 struct WatchSnapshotPayload: Codable, Hashable {
     var tasks: [WatchTask]
     var pendingApproval: WatchApproval?
     var voice: WatchVoiceState?
+    /// Resolved palette + appearance for the watch UI. Optional so older
+    /// iPhone builds (and old persisted snapshots) decode cleanly.
+    var theme: WatchThemePayload?
 }
 
 #if DEBUG
@@ -119,7 +159,15 @@ enum WatchPreviewFixtures {
                 WatchTranscriptTurn(role: .user,      text: "fix auth expiry", faded: false),
                 WatchTranscriptTurn(role: .assistant, text: "editing...",      faded: false),
             ],
-            pendingApprovalId: nil
+            pendingApprovalId: nil,
+            model: "gpt-5-codex",
+            cwd: "/Users/dev/litter",
+            turnCount: 4,
+            toolCallCount: 11,
+            diffAdditions: 32,
+            diffDeletions: 7,
+            contextPercent: 18,
+            hasTurnActive: true
         ),
         WatchTask(
             id: "macbook-pro:t2",
@@ -173,5 +221,25 @@ enum WatchPreviewFixtures {
         WatchTranscriptTurn(role: .user,      text: "fix the auth test",   faded: false),
         WatchTranscriptTurn(role: .assistant, text: "done. tests pass.",   faded: false),
     ]
+
+    /// Dark ginger fallback so previews look like today's hardcoded theme.
+    static let theme = WatchThemePayload(
+        appearanceMode: .dark,
+        isDark: true,
+        accent: "#F59E0B",
+        accentStrong: "#D97706",
+        textPrimary: "#FCFCFC",
+        textSecondary: "#8F8F8F",
+        textMuted: "#555555",
+        surface: "#0E0E0E",
+        surfaceLight: "#1A1A1A",
+        border: "#222222",
+        danger: "#FF5555",
+        success: "#00FF9C",
+        warning: "#E2A644",
+        textOnAccent: "#1F2937",
+        backgroundTop: "#000000",
+        backgroundBottom: "#0A0A0A"
+    )
 }
 #endif

@@ -58,6 +58,7 @@ final class WatchAppStore: ObservableObject {
         guard lastSyncDate == nil,
               let (payload, date) = WatchSnapshotStore.current()
         else { return }
+        WatchThemeStore.shared.apply(payload.theme)
         tasks = payload.tasks
         pendingApproval = payload.pendingApproval
         voice = payload.voice

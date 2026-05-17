@@ -5,6 +5,7 @@ import SwiftUI
 /// the task the user drilled into — no round-trip to the phone.
 struct TranscriptScreen: View {
     @EnvironmentObject var store: WatchAppStore
+    @EnvironmentObject var theme: WatchThemeStore
 
     var body: some View {
         let task = store.focusedTask
@@ -28,7 +29,7 @@ struct TranscriptScreen: View {
                                 if !task.relativeTime.isEmpty {
                                     Text(task.relativeTime)
                                         .font(WatchTheme.mono(9))
-                                        .foregroundStyle(WatchTheme.dim)
+                                        .foregroundStyle(theme.textMuted)
                                 }
                             }
                             .padding(.horizontal, 4)
@@ -49,14 +50,15 @@ struct TranscriptScreen: View {
                     Label("reply", systemImage: "mic.fill")
                         .font(WatchTheme.mono(11, weight: .bold))
                 }
-                .tint(WatchTheme.ginger)
+                .tint(theme.accent)
             }
         }
-        .containerBackground(WatchTheme.bg.gradient, for: .navigation)
+        .containerBackground(theme.backgroundGradient, for: .navigation)
     }
 }
 
 private struct TranscriptBubble: View {
+    @EnvironmentObject var theme: WatchThemeStore
     let turn: WatchTranscriptTurn
 
     var body: some View {
@@ -83,12 +85,12 @@ private struct TranscriptBubble: View {
             case .system:
                 Text(turn.text)
                     .font(WatchTheme.mono(10))
-                    .foregroundStyle(WatchTheme.dim)
+                    .foregroundStyle(theme.textSecondary)
                     .italic()
                     .padding(.leading, 6)
                     .overlay(alignment: .leading) {
                         Rectangle()
-                            .fill(WatchTheme.ginger)
+                            .fill(theme.accent)
                             .frame(width: 2)
                     }
                 Spacer(minLength: 0)
@@ -96,7 +98,7 @@ private struct TranscriptBubble: View {
             case .assistant:
                 Text(turn.text)
                     .font(WatchTheme.mono(11))
-                    .foregroundStyle(WatchTheme.text)
+                    .foregroundStyle(theme.textPrimary)
                 Spacer(minLength: 0)
             }
         }
@@ -108,10 +110,15 @@ private struct TranscriptBubble: View {
     NavigationStack {
         TranscriptScreen()
             .environmentObject(WatchAppStore.previewStore())
+            .environmentObject(WatchThemeStore.shared)
     }
 }
 
 #Preview("empty") {
-    NavigationStack { TranscriptScreen().environmentObject(WatchAppStore()) }
+    NavigationStack {
+        TranscriptScreen()
+            .environmentObject(WatchAppStore())
+            .environmentObject(WatchThemeStore.shared)
+    }
 }
 #endif

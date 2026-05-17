@@ -1,12 +1,10 @@
 import SwiftUI
 import PhotosUI
-import UniformTypeIdentifiers
 import UIKit
 
 struct ConversationComposerModalCoordinator<Content: View>: View {
     @Environment(AppModel.self) private var appModel
     @Environment(AppState.self) private var appState
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     let snapshot: ConversationComposerSnapshot
     let experimentalFeatures: [ExperimentalFeature]
@@ -135,9 +133,8 @@ struct ConversationComposerModalCoordinator<Content: View>: View {
     }
 
     private var attachSheetDetentHeight: CGFloat {
-        let showsFile = LitterPlatform.isRegularSurface(horizontalSizeClass: horizontalSizeClass)
         let showsCamera = !LitterPlatform.isCatalyst
-        let count = 1 + (showsFile ? 1 : 0) + (showsCamera ? 1 : 0)
+        let count = 2 + (showsCamera ? 1 : 0)
         return count >= 3 ? 260 : 210
     }
 
@@ -149,10 +146,10 @@ struct ConversationComposerModalCoordinator<Content: View>: View {
                         showAttachMenu = false
                         showPhotoPicker = true
                     },
-                    onChooseFile: LitterPlatform.isRegularSurface(horizontalSizeClass: horizontalSizeClass) ? {
+                    onChooseFile: {
                         showAttachMenu = false
                         showFileImporter = true
-                    } : nil,
+                    },
                     onTakePhoto: LitterPlatform.isCatalyst ? nil : {
                         showAttachMenu = false
                         showCamera = true
@@ -164,7 +161,7 @@ struct ConversationComposerModalCoordinator<Content: View>: View {
             .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
             .fileImporter(
                 isPresented: $showFileImporter,
-                allowedContentTypes: [.image],
+                allowedContentTypes: ConversationAttachmentSupport.supportedFileContentTypes,
                 allowsMultipleSelection: false
             ) { result in
                 guard case let .success(urls) = result,

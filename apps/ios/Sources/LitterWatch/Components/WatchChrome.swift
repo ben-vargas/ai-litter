@@ -1,16 +1,19 @@
 import SwiftUI
 
-/// Ginger eyebrow heading — small uppercased mono text.
+/// Themed eyebrow heading — small uppercased mono text. When `color` is nil
+/// it falls back to the live `WatchThemeStore` accent so unstyled callers
+/// inherit the user's selected theme.
 struct WatchEyebrow: View {
+    @EnvironmentObject var theme: WatchThemeStore
     let text: String
-    var color: Color = WatchTheme.ginger
+    var color: Color? = nil
     var size: CGFloat = 11
 
     var body: some View {
         Text(text.uppercased())
             .font(WatchTheme.mono(size, weight: .bold))
             .tracking(1.4)
-            .foregroundStyle(color)
+            .foregroundStyle(color ?? theme.accent)
     }
 }
 
@@ -37,6 +40,7 @@ struct PulsingDot: View {
 /// Centered empty-state card. Used when the watch has no data for a
 /// surface yet — either no pending approval, no running task, etc.
 struct WatchEmptyState: View {
+    @EnvironmentObject var theme: WatchThemeStore
     let icon: String
     let title: String
     let subtitle: String?
@@ -51,15 +55,15 @@ struct WatchEmptyState: View {
         VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(WatchTheme.dim)
+                .foregroundStyle(theme.textSecondary)
             Text(title)
                 .font(WatchTheme.mono(12, weight: .bold))
-                .foregroundStyle(WatchTheme.text)
+                .foregroundStyle(theme.textPrimary)
                 .multilineTextAlignment(.center)
             if let subtitle {
                 Text(subtitle)
                     .font(WatchTheme.mono(10))
-                    .foregroundStyle(WatchTheme.dim)
+                    .foregroundStyle(theme.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
             }

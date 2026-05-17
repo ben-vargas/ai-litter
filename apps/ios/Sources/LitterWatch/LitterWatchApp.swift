@@ -7,6 +7,7 @@ import UserNotifications
 @main
 struct LitterWatchApp: App {
     @StateObject private var store = WatchAppStore.shared
+    @StateObject private var theme = WatchThemeStore.shared
 
     init() {
         WatchSessionBridge.shared.start()
@@ -16,8 +17,9 @@ struct LitterWatchApp: App {
         WindowGroup {
             WatchRootView()
                 .environmentObject(store)
-                .preferredColorScheme(.dark)
-                .tint(WatchTheme.ginger)
+                .environmentObject(theme)
+                .preferredColorScheme(theme.colorScheme)
+                .tint(theme.accent)
         }
 
         WKNotificationScene(

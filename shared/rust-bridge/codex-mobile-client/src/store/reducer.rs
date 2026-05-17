@@ -48,6 +48,8 @@ use super::voice::{VoiceDerivedUpdate, VoiceRealtimeState};
 const USER_INPUT_NOTE_PREFIX: &str = "user_note: ";
 const USER_INPUT_OTHER_OPTION_LABEL: &str = "None of the above";
 const LOCAL_USER_MESSAGE_ITEM_PREFIX: &str = "local-user-message:";
+const DESKTOP_FILE_CONTEXT_HEADER: &str = "# Files mentioned by the user:";
+const DESKTOP_FILE_CONTEXT_REQUEST_HEADER: &str = "## My request for Codex:";
 
 /// Compute a 64-bit fingerprint of a projected `HydratedConversationItem`
 /// suitable for redundant-emit dedup in `emit_thread_item_changed`. Streams
@@ -3075,9 +3077,9 @@ fn render_user_input(inputs: &[upstream::UserInput]) -> (String, Vec<String>) {
     for input in inputs {
         match input {
             upstream::UserInput::Text { text, .. } => {
-                let trimmed = text.trim();
+                let trimmed = visible_user_text(text);
                 if !trimmed.is_empty() {
-                    text_parts.push(trimmed.to_string());
+                    text_parts.push(trimmed);
                 }
             }
             upstream::UserInput::Image { url } => images.push(url.clone()),
@@ -3105,6 +3107,38 @@ fn render_user_input(inputs: &[upstream::UserInput]) -> (String, Vec<String>) {
         }
     }
     (text_parts.join("\n"), images)
+}
+
+fn visible_user_text(text: &str) -> String {
+    let trimmed = text.trim();
+    if !trimmed.starts_with(DESKTOP_FILE_CONTEXT_HEADER) {
+        return trimmed.to_string();
+    }
+    let Some((file_context, request)) = trimmed.split_once(DESKTOP_FILE_CONTEXT_REQUEST_HEADER)
+    else {
+        return trimmed.to_string();
+    };
+    let request = request.trim();
+    if !request.is_empty() {
+        return request.to_string();
+    }
+    file_context_summary(file_context).unwrap_or_else(|| trimmed.to_string())
+}
+
+fn file_context_summary(file_context: &str) -> Option<String> {
+    let labels: Vec<String> = file_context
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("## "))
+        .map(|line| line.split_once(':').map(|(label, _)| label).unwrap_or(line))
+        .map(str::trim)
+        .filter(|label| !label.is_empty())
+        .map(|label| format!("[File] {label}"))
+        .collect();
+    if labels.is_empty() {
+        None
+    } else {
+        Some(labels.join("\n"))
+    }
 }
 
 fn preserve_local_overlay_items(source: &ThreadSnapshot, target: &mut ThreadSnapshot) {

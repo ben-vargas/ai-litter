@@ -577,11 +577,15 @@ ios-build: ios-build-sim
 # app, so `make ios-sim-fast` will build it transitively when that ships.
 #
 # Variables you can override:
-#   WATCH_SIM_DEVICE    simulator name (default: Apple Watch Series 10 (46mm))
-#   WATCH_SCHEME        Xcode scheme (default: LitterWatch)
+#   WATCH_SIM_DEVICE       simulator name for watch-sim-run (default: Apple Watch Series 11 (46mm))
+#   WATCH_SIM_UDID         concrete watch simulator UDID for watch-sim-run
+#   WATCH_BUILD_DESTINATION xcodebuild watchOS simulator destination (default: generic/platform=watchOS Simulator)
+#   WATCH_SCHEME           Xcode scheme (default: LitterWatch)
 # ─────────────────────────────────────────────────────────────────────────────
 
-WATCH_SIM_DEVICE ?= Apple Watch Series 10 (46mm)
+WATCH_SIM_DEVICE ?= Apple Watch Series 11 (46mm)
+WATCH_SIM_UDID ?=
+WATCH_BUILD_DESTINATION ?= generic/platform=watchOS Simulator
 WATCH_SCHEME ?= LitterWatch
 
 watch: watch-sim
@@ -597,7 +601,7 @@ watch-sim: verify-ios-project
 	@xcodebuild -project $(IOS_DIR)/Litter.xcodeproj \
 		-scheme $(WATCH_SCHEME) \
 		-configuration $(XCODE_CONFIG) \
-		-destination 'platform=watchOS Simulator,name=$(WATCH_SIM_DEVICE)' \
+		-destination '$(WATCH_BUILD_DESTINATION)' \
 		build
 
 watch-device: verify-ios-project
@@ -609,18 +613,21 @@ watch-device: verify-ios-project
 		-allowProvisioningUpdates \
 		build
 
-# Boot the Series 10 46mm sim, build, install the .app and launch.
+# Boot a matching watch simulator, build, install the .app and launch.
 watch-sim-run: watch-sim
 	@echo "==> Booting $(WATCH_SIM_DEVICE) and installing LitterWatch..."
-	@WATCH_UDID=$$(xcrun simctl list devices | awk '/$(WATCH_SIM_DEVICE)/ { \
-		match($$0, /\([0-9A-F-]+\)/); print substr($$0, RSTART+1, RLENGTH-2); exit \
-	}') ; \
+	@WATCH_UDID="$(WATCH_SIM_UDID)" ; \
+	if [ -z "$$WATCH_UDID" ]; then \
+		WATCH_UDID=$$(xcrun simctl list devices available | awk 'index($$0, "$(WATCH_SIM_DEVICE)") { \
+			if (match($$0, /\([0-9A-F-]+\)/)) id=substr($$0, RSTART+1, RLENGTH-2) \
+		} END { print id }') ; \
+	fi ; \
 	if [ -z "$$WATCH_UDID" ]; then \
 		echo "ERROR: no simulator matching '$(WATCH_SIM_DEVICE)'. Run 'xcrun simctl list devices' to see what's installed."; exit 1; \
 	fi ; \
 	xcrun simctl boot $$WATCH_UDID 2>/dev/null || true ; \
 	APP_PATH=$$(xcodebuild -project $(IOS_DIR)/Litter.xcodeproj -scheme $(WATCH_SCHEME) \
-		-configuration $(XCODE_CONFIG) -destination "platform=watchOS Simulator,name=$(WATCH_SIM_DEVICE)" \
+		-configuration $(XCODE_CONFIG) -destination "$(WATCH_BUILD_DESTINATION)" \
 		-showBuildSettings 2>/dev/null | awk -F' = ' '/ CODESIGNING_FOLDER_PATH /{print $$2; exit}') ; \
 	echo "==> Installing $$APP_PATH"; \
 	xcrun simctl install $$WATCH_UDID "$$APP_PATH" ; \

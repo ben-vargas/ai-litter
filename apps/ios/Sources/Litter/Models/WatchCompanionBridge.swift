@@ -48,6 +48,8 @@ final class WatchCompanionBridge: NSObject {
     private var lastPushedPayload: WatchSnapshotPayload?
     private var lastPushedComplication: Data?
     private var pushThrottle: Task<Void, Never>?
+    private var themeObserver: NSObjectProtocol?
+    private var preferencesObserver: NSObjectProtocol?
 
     /// Injected WatchConnectivity surface. Tests pass a fake; production
     /// uses `WCSession.default` via the conformance above.
@@ -68,6 +70,56 @@ final class WatchCompanionBridge: NSObject {
         session.delegate = delegate
         session.activate()
         observe()
+        observeThemeChanges()
+        observeHomePreferencesChanges()
+    }
+
+    /// Pin/hide changes don't mutate `AppModel.snapshot` so the snapshot
+    /// observation tracker won't notice them. Fire a re-push whenever the
+    /// SavedThreadsStore notifies preferences changed (CloudKV sync, local
+    /// pin/hide actions, watch-originated hide).
+    private func observeHomePreferencesChanges() {
+        guard preferencesObserver == nil else { return }
+        preferencesObserver = NotificationCenter.default.addObserver(
+            forName: .litterThreadPreferencesDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.lastPushedPayload = nil
+                self.lastPushedComplication = nil
+                self.pushIfChanged()
+            }
+        }
+    }
+
+    /// Theme changes don't touch `AppModel.snapshot`, so the observation
+    /// tracker above won't fire. Listen for `.themeDidChange` and force a
+    /// re-push by clearing the diff state, then go through the same throttle
+    /// path the snapshot pump uses.
+    private func observeThemeChanges() {
+        guard themeObserver == nil else { return }
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: .themeDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.lastPushedPayload = nil
+                self.pushIfChanged()
+            }
+        }
+    }
+
+    deinit {
+        if let themeObserver {
+            NotificationCenter.default.removeObserver(themeObserver)
+        }
+        if let preferencesObserver {
+            NotificationCenter.default.removeObserver(preferencesObserver)
+        }
     }
 
     // MARK: - Observation
@@ -99,7 +151,6 @@ final class WatchCompanionBridge: NSObject {
         let complication = currentComplicationSnapshot()
 
         if payload != lastPushedPayload {
-            lastPushedPayload = payload
             push(payload: payload)
         }
 
@@ -117,11 +168,25 @@ final class WatchCompanionBridge: NSObject {
         let threads = snapshot?.threads ?? []
         let pendingApprovals = snapshot?.pendingApprovals ?? []
 
-        let tasks = WatchProjection.tasks(
+        // Mirror what the iPhone home actually displays — pin/hide rules from
+        // SavedThreadsStore. Watch home stays in sync with phone home.
+        let pinned = SavedThreadsStore.pinnedKeys()
+        let hidden = SavedThreadsStore.hiddenKeys()
+        let visibleSummaries = WatchProjection.homeFilteredSummaries(
             summaries: summaries,
+            pinned: pinned,
+            hidden: hidden
+        )
+
+        let projected = WatchProjection.tasks(
+            summaries: visibleSummaries,
             threads: threads,
             pendingApprovals: pendingApprovals
         )
+        // In pinned mode, the iPhone home shows pins in pin order. The watch
+        // overlays its status-priority sort on top (running/needsApproval
+        // surface to the top of each pin group).
+        let tasks = WatchProjection.applyPinOrder(projected, pinned: pinned)
 
         return WatchSnapshotPayload(
             tasks: tasks,
@@ -131,7 +196,8 @@ final class WatchCompanionBridge: NSObject {
             voice: WatchProjection.voice(
                 from: snapshot,
                 isMuted: VoiceRuntimeController.shared.isMicrophoneMuted
-            )
+            ),
+            theme: WatchProjection.theme(from: ThemeManager.shared)
         )
     }
 
@@ -143,11 +209,22 @@ final class WatchCompanionBridge: NSObject {
         let connectedCount = (snapshot?.servers ?? [])
             .filter { $0.transportState == .connected }.count
 
-        let tasks = WatchProjection.tasks(
+        // Same home-visibility filter + pin-order overlay as the WC payload —
+        // hidden tasks shouldn't bleed into watch face complications either.
+        let pinned = SavedThreadsStore.pinnedKeys()
+        let hidden = SavedThreadsStore.hiddenKeys()
+        let visibleSummaries = WatchProjection.homeFilteredSummaries(
             summaries: summaries,
+            pinned: pinned,
+            hidden: hidden
+        )
+
+        let projected = WatchProjection.tasks(
+            summaries: visibleSummaries,
             threads: threads,
             pendingApprovals: pendingApprovals
         )
+        let tasks = WatchProjection.applyPinOrder(projected, pinned: pinned)
         let runningTask = tasks.first { $0.status == .running }
             ?? tasks.first { $0.status == .needsApproval }
 
@@ -225,17 +302,18 @@ final class WatchCompanionBridge: NSObject {
         }
 
         guard transport.activationState == .activated else { return }
-        guard transport.isPaired && transport.isWatchAppInstalled else { return }
+        guard transport.isPaired else { return }
 
         // Throttle: coalesce rapid mutations into a single
         // updateApplicationContext call. Kept at 150ms — fast enough that
         // the watch feels live, slow enough to coalesce a turn-burst.
         pushThrottle?.cancel()
-        pushThrottle = Task { @MainActor [transport] in
+        pushThrottle = Task { @MainActor [weak self, transport] in
             try? await Task.sleep(nanoseconds: 150_000_000)
             guard !Task.isCancelled else { return }
             do {
                 try transport.updateApplicationContext(["litter.snapshot": data])
+                self?.lastPushedPayload = payload
             } catch {
                 LLog.error("watch", "push failed: \(error.localizedDescription)")
             }
@@ -291,9 +369,43 @@ final class WatchCompanionBridge: NSObject {
         case "voice.bargeIn":
             return await handleVoiceBargeIn()
 
+        case "home.hide":
+            return handleHomeHide(message)
+
+        case "home.unhide":
+            return handleHomeUnhide(message)
+
         default:
             return nil
         }
+    }
+
+    // MARK: Inbound — home visibility
+
+    private func handleHomeHide(_ message: [String: Any]) -> [String: Any] {
+        guard let key = threadKey(from: message) else {
+            return ["ok": false, "error": "invalid hide payload"]
+        }
+        SavedThreadsStore.hide(PinnedThreadKey(threadKey: key))
+        // The preferences observer fires a re-push; reply immediately so the
+        // watch's swipe action feels snappy.
+        return ["ok": true]
+    }
+
+    private func handleHomeUnhide(_ message: [String: Any]) -> [String: Any] {
+        guard let key = threadKey(from: message) else {
+            return ["ok": false, "error": "invalid unhide payload"]
+        }
+        SavedThreadsStore.unhide(PinnedThreadKey(threadKey: key))
+        return ["ok": true]
+    }
+
+    private func threadKey(from message: [String: Any]) -> ThreadKey? {
+        guard
+            let serverId = (message["serverId"] as? String).flatMap({ $0.isEmpty ? nil : $0 }),
+            let threadId = (message["threadId"] as? String).flatMap({ $0.isEmpty ? nil : $0 })
+        else { return nil }
+        return ThreadKey(serverId: serverId, threadId: threadId)
     }
 
     // MARK: Inbound — approvals

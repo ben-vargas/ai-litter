@@ -29,15 +29,9 @@ enum LitterFeature: String, CaseIterable, Identifiable {
         case .realtimeVoice: return true
         case .thinkingMinigame: return false
         case .appleWatch:
-            // Off by default in both Debug and Release. The projection pipeline
-            // polls `AppModel.shared.snapshot` every 250ms on the main actor and
-            // runs two full `WatchProjection.tasks(...)` sweeps per tick; on an
-            // idle home screen that cost ~1.8s of main-thread CPU over a 23s
-            // trace (Instruments, 2026-04). Release already had it off to avoid
-            // WCSession startup without a companion binary embedded; Debug no
-            // longer auto-enables either. Flip in Settings → Experimental
-            // Features to test the watch pipeline locally.
-            return false
+            // Default on now that the watch app is embedded again. The bridge
+            // still no-ops when WatchConnectivity is unavailable.
+            return true
         }
     }
 }

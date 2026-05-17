@@ -46,6 +46,7 @@
 		0F7F71135A48FD54EAF3C257 /* brand_logo.png in Resources */ = {isa = PBXBuildFile; fileRef = 17BD69B0550C63596995AC18 /* brand_logo.png */; };
 		0FA2D55FE17D4AD9A910FB74 /* gruvbox-light-hard.json in Resources */ = {isa = PBXBuildFile; fileRef = 9AF7E00FF3D6A3D37B161855 /* gruvbox-light-hard.json */; };
 		0FEE6C68E9A49D3AAB2859FD /* LitterComplicationEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4578B3ADA4BFFC01A6910404 /* LitterComplicationEntry.swift */; };
+		10BD8E2374BC2D3FE8123919 /* WatchThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D34A8B1DB2953A5B9A182E6E /* WatchThemeStore.swift */; };
 		1101AAA61DF5B949EE2BB0AF /* StreamingRendererCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ECDF838BCE5FEBFE5B80DCC /* StreamingRendererCoordinator.swift */; };
 		1129DC9B38650FC49541690E /* BerkeleyMono-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = 3BD63CCD80D9E1F66879EF97 /* BerkeleyMono-Bold.otf */; };
 		120959210E9154F5F2D5E0E2 /* UWBDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F86295AB7DE370727377248 /* UWBDebugView.swift */; };
@@ -109,6 +110,7 @@
 		296F143C0AAB96F9FFBFC2FF /* vitesse-black.json in Resources */ = {isa = PBXBuildFile; fileRef = C7ADFC239B833D53726499FC /* vitesse-black.json */; };
 		29C4BF0A7811B9FA8062D8E3 /* CatalystRuntimeStubs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E1172327AFBD0CF0947468A /* CatalystRuntimeStubs.swift */; };
 		2A0D5F4749DADFCD128AE0E2 /* UltrasonicReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97B8D236FEDF8F743D857C5 /* UltrasonicReader.swift */; };
+		2AA2A1B16471F43F1BEC3C7B /* LitterWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = BC1E299971F413437A6180D0 /* LitterWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2AC9CF710AAC599B03215B36 /* ToolCallMessageParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03425A33EF523B27A338F941 /* ToolCallMessageParserTests.swift */; };
 		2B382FE090E2603AB6B04517 /* StreamingPiPController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7531CE3B68A17C62F235ACE6 /* StreamingPiPController.swift */; };
 		2B9DD5A54D6958BFE4369B38 /* ConversationComposerTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75F91259F006987853B6929F /* ConversationComposerTextView.swift */; };
@@ -206,6 +208,7 @@
 		535331FCBDF1337FABF60189 /* SessionsTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9F1AA9A960B33D4BF4DEA49 /* SessionsTypes.swift */; };
 		536D80B942E8F4E7A5C4D0C8 /* ConversationDisplayUITestHarnessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DD020815AD85C874D0DFEB /* ConversationDisplayUITestHarnessView.swift */; };
 		5380A526444F33B701903335 /* MacCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFE934B56ED67FA473EA25A /* MacCommands.swift */; };
+		54B6CE97AD74BBE79CA6890D /* WatchThemePayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC37206CDAE11DBA2A94234E /* WatchThemePayloadTests.swift */; };
 		559D9CFDF4AAC8C5E5FC4452 /* StreamingRendererCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ECDF838BCE5FEBFE5B80DCC /* StreamingRendererCoordinator.swift */; };
 		55C3EEE366FD3ABE9BCFA271 /* ConversationScreenModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C91A1B7B1207FAD81D940DA8 /* ConversationScreenModel.swift */; };
 		55C6A6864F364EC484A9D349 /* notion-dark-BTRKJ-yg.json in Resources */ = {isa = PBXBuildFile; fileRef = 5FB346B6064CA358E9EEAD00 /* notion-dark-BTRKJ-yg.json */; };
@@ -625,6 +628,13 @@
 			remoteGlobalIDString = A3D84F588EDBC1EA550D6691;
 			remoteInfo = Litter;
 		};
+		3A2504B1D85BCBAA74CD64C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B5F70FFC94D335C17162EB35 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3B991C03E72B1546CAD35698;
+			remoteInfo = LitterWatch;
+		};
 		720894D91C69A207B77509AC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B5F70FFC94D335C17162EB35 /* Project object */;
@@ -649,6 +659,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		A13463EF26DE307699158028 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				2AA2A1B16471F43F1BEC3C7B /* LitterWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D711EC2924CE758418892776 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -932,6 +953,7 @@
 		B8CDEFFF11E937A2BDB094FB /* SwipeableRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeableRow.swift; sourceTree = "<group>"; };
 		BAC7D83216AF4F0FFA325009 /* gruvbox-light-soft.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "gruvbox-light-soft.json"; sourceTree = "<group>"; };
 		BC1E299971F413437A6180D0 /* LitterWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LitterWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BC37206CDAE11DBA2A94234E /* WatchThemePayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchThemePayloadTests.swift; sourceTree = "<group>"; };
 		BD06A4B1DBF4069D6608D7C2 /* WatchSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSnapshotStore.swift; sourceTree = "<group>"; };
 		BD1ACB5BC8CBE4849EB34E73 /* PiPHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiPHostView.swift; sourceTree = "<group>"; };
 		BE04FF38C9E336A47C7E161B /* PerformanceHelpersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceHelpersTests.swift; sourceTree = "<group>"; };
@@ -968,6 +990,7 @@
 		D2608C1F271D28BFEFBA5EFB /* kanagawa-lotus.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "kanagawa-lotus.json"; sourceTree = "<group>"; };
 		D2DC320BD7E1525386BCF44F /* MacPairingHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPairingHost.swift; sourceTree = "<group>"; };
 		D330E51EBB1EC86C197A9296 /* LocalCodexBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCodexBootstrap.swift; sourceTree = "<group>"; };
+		D34A8B1DB2953A5B9A182E6E /* WatchThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchThemeStore.swift; sourceTree = "<group>"; };
 		D4BBEE5D22A050571A528EF0 /* catppuccin-mocha-Ry8aD-5u.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "catppuccin-mocha-Ry8aD-5u.json"; sourceTree = "<group>"; };
 		D5294396A986F27242D0F814 /* ProjectChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectChip.swift; sourceTree = "<group>"; };
 		D58FC0D181B46D56485C2AAB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -1123,6 +1146,7 @@
 				03425A33EF523B27A338F941 /* ToolCallMessageParserTests.swift */,
 				521F9A2BAAA77D9F934C3573 /* WatchCompanionBridgeTests.swift */,
 				1CC0D1475C008F69A2503AA4 /* WatchProjectionTests.swift */,
+				BC37206CDAE11DBA2A94234E /* WatchThemePayloadTests.swift */,
 			);
 			name = LitterTests;
 			path = Tests/LitterTests;
@@ -1273,6 +1297,7 @@
 				B851BADF65A707A42EC7F94F /* WatchSessionBridge.swift */,
 				BD06A4B1DBF4069D6608D7C2 /* WatchSnapshotStore.swift */,
 				59A9A0467A199733EAA725E4 /* WatchTheme.swift */,
+				D34A8B1DB2953A5B9A182E6E /* WatchThemeStore.swift */,
 			);
 			name = Models;
 			path = Sources/LitterWatch/Models;
@@ -1673,11 +1698,13 @@
 				5367EEFD6422750AE9FEF343 /* Resources */,
 				AA7F329456F40E8DD44D56A9 /* Frameworks */,
 				D711EC2924CE758418892776 /* Embed Foundation Extensions */,
+				A13463EF26DE307699158028 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				D9747756413DC5D5FD6BDE37 /* PBXTargetDependency */,
+				690A85D719693BF7C16A6E99 /* PBXTargetDependency */,
 			);
 			name = Litter;
 			packageProductDependencies = (
@@ -2047,6 +2074,7 @@
 				49026CE0B09FF41A24966343 /* WatchSessionBridge.swift in Sources */,
 				9322863E17E98563B7AA907A /* WatchSnapshotStore.swift in Sources */,
 				F6255900FB55ECC31EDBDF2D /* WatchTheme.swift in Sources */,
+				10BD8E2374BC2D3FE8123919 /* WatchThemeStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2075,6 +2103,7 @@
 				2AC9CF710AAC599B03215B36 /* ToolCallMessageParserTests.swift in Sources */,
 				B9F0C7E8BA9FCF65B2D8FB6E /* WatchCompanionBridgeTests.swift in Sources */,
 				1C1BCBE95443A2553A6C08F3 /* WatchProjectionTests.swift in Sources */,
+				54B6CE97AD74BBE79CA6890D /* WatchThemePayloadTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2470,6 +2499,11 @@
 			isa = PBXTargetDependency;
 			target = C0C98C6012493B73CDD5AD6E /* LitterWatchComplications */;
 			targetProxy = 720894D91C69A207B77509AC /* PBXContainerItemProxy */;
+		};
+		690A85D719693BF7C16A6E99 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3B991C03E72B1546CAD35698 /* LitterWatch */;
+			targetProxy = 3A2504B1D85BCBAA74CD64C1 /* PBXContainerItemProxy */;
 		};
 		9E7E6ED488ADBB62F6CFB3AB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;

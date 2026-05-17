@@ -45,6 +45,15 @@ enum WatchProjection {
                 subtitle = nil
             }
 
+            let stats = summary.stats
+            let pct: Int? = {
+                guard let tu = summary.tokenUsage,
+                      let window = tu.contextWindow,
+                      window > 0
+                else { return nil }
+                return Int(min(100, max(0, (Double(tu.totalTokens) / Double(window)) * 100)))
+            }()
+
             return WatchTask(
                 id: "\(summary.key.serverId):\(summary.key.threadId)",
                 threadId: summary.key.threadId,
@@ -56,7 +65,15 @@ enum WatchProjection {
                 relativeTime: relativeTime(from: summary.updatedAt),
                 steps: thread.map { deriveSteps(from: $0.hydratedConversationItems) } ?? [],
                 transcript: thread.map { transcript(for: $0) } ?? [],
-                pendingApprovalId: threadApprovals.first?.id
+                pendingApprovalId: threadApprovals.first?.id,
+                model: summary.model.isEmpty ? nil : summary.model,
+                cwd: summary.cwd.isEmpty ? nil : summary.cwd,
+                turnCount: stats.map { Int($0.turnCount) },
+                toolCallCount: stats.map { Int($0.toolCallCount) },
+                diffAdditions: stats.map { Int($0.diffAdditions) },
+                diffDeletions: stats.map { Int($0.diffDeletions) },
+                contextPercent: pct,
+                hasTurnActive: summary.hasActiveTurn
             )
         }
 
@@ -68,6 +85,67 @@ enum WatchProjection {
             return (indexOfUpdatedAt(lhs, in: summaries) ?? Int.max)
                  < (indexOfUpdatedAt(rhs, in: summaries) ?? Int.max)
         }
+    }
+
+    /// Re-sort an already-projected task list so that, within each status
+    /// group, threads appear in the iPhone home's pin order. Use this on
+    /// top of `tasks(...)` when pinned mode is active. Tasks not in
+    /// `pinned` sort to the end of their group, ordered by their existing
+    /// position (stable).
+    static func applyPinOrder(
+        _ tasks: [WatchTask],
+        pinned: [PinnedThreadKey]
+    ) -> [WatchTask] {
+        guard !pinned.isEmpty else { return tasks }
+        let pinIndex: [PinnedThreadKey: Int] = Dictionary(
+            uniqueKeysWithValues: pinned.enumerated().map { ($1, $0) }
+        )
+        // Pair each task with its (statusRank, pinOrder, originalIndex) so a
+        // stable sort preserves intra-group ordering for unpinned trailers.
+        let decorated = tasks.enumerated().map { idx, task -> (key: (Int, Int, Int), task: WatchTask) in
+            let pin = PinnedThreadKey(serverId: task.serverId, threadId: task.threadId)
+            return ((rank(task.status), pinIndex[pin] ?? Int.max, idx), task)
+        }
+        return decorated
+            .sorted { lhs, rhs in
+                if lhs.key.0 != rhs.key.0 { return lhs.key.0 < rhs.key.0 }
+                if lhs.key.1 != rhs.key.1 { return lhs.key.1 < rhs.key.1 }
+                return lhs.key.2 < rhs.key.2
+            }
+            .map(\.task)
+    }
+
+    /// Apply the iPhone home's visibility rules to a summary list so the
+    /// watch shows exactly what the phone home shows.
+    ///
+    /// - Hidden threads are excluded.
+    /// - If any threads are pinned, show only those (in pin order). Pinned
+    ///   entries not yet in `summaries` are skipped (the iPhone uses a
+    ///   "Loading thread" placeholder; the watch just waits for the next push).
+    /// - Otherwise show the 10 most-recent summaries.
+    ///
+    /// Mirrors `HomeDashboardModel.mergedHomeSessions` in
+    /// `apps/ios/Sources/Litter/Views/HomeDashboardModel.swift`.
+    static func homeFilteredSummaries(
+        summaries: [AppSessionSummary],
+        pinned: [PinnedThreadKey],
+        hidden: [PinnedThreadKey]
+    ) -> [AppSessionSummary] {
+        let hiddenSet = Set(hidden)
+        let candidates = summaries.filter {
+            !hiddenSet.contains(PinnedThreadKey(threadKey: $0.key))
+        }
+        if !pinned.isEmpty {
+            let byKey = Dictionary(uniqueKeysWithValues: candidates.map {
+                (PinnedThreadKey(threadKey: $0.key), $0)
+            })
+            return pinned.compactMap { byKey[$0] }
+        }
+        return Array(
+            candidates
+                .sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
+                .prefix(10)
+        )
     }
 
     static func approval(_ approval: PendingApproval) -> WatchApproval {
@@ -316,5 +394,45 @@ enum WatchProjection {
             .replacingOccurrences(of: "\n", with: " ")
         if trimmed.count <= max { return trimmed }
         return String(trimmed.prefix(max - 1)) + "…"
+    }
+
+    // MARK: - Theme projection
+
+    /// Build a resolved palette the watch can apply directly. Honors
+    /// `ThemeManager.appearanceMode` plus `ThemeStore.colorScheme` (which
+    /// already resolves `.system` against the live trait collection).
+    @MainActor
+    static func theme(from manager: ThemeManager) -> WatchThemePayload {
+        let mode: WatchThemePayload.AppearanceMode = {
+            switch manager.appearanceMode {
+            case .system: return .system
+            case .light:  return .light
+            case .dark:   return .dark
+            }
+        }()
+        let cs = ThemeStore.shared.colorScheme
+        let t = cs == .dark ? manager.darkTheme : manager.lightTheme
+        let bottom = ResolvedTheme.adjustBrightness(
+            t.background,
+            by: cs == .dark ? -0.02 : 0.01
+        )
+        return WatchThemePayload(
+            appearanceMode: mode,
+            isDark: cs == .dark,
+            accent: t.accent,
+            accentStrong: t.accentStrong,
+            textPrimary: t.textPrimary,
+            textSecondary: t.textSecondary,
+            textMuted: t.textMuted,
+            surface: t.surface,
+            surfaceLight: t.surfaceLight,
+            border: t.border,
+            danger: t.danger,
+            success: t.success,
+            warning: t.warning,
+            textOnAccent: t.textOnAccent,
+            backgroundTop: t.background,
+            backgroundBottom: bottom
+        )
     }
 }

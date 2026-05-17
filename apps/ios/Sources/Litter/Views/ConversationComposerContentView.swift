@@ -4,6 +4,7 @@ import UIKit
 struct ConversationComposerContentView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let attachedImage: UIImage?
+    let attachedFiles: [ComposerFileAttachment]
     let collaborationMode: AppModeKind
     let activePlanProgress: AppPlanProgressSnapshot?
     let pendingUserInputRequest: PendingUserInputRequest?
@@ -21,6 +22,7 @@ struct ConversationComposerContentView: View {
     let allowsVoiceInput: Bool
     @Binding var showAttachMenu: Bool
     let onClearAttachment: () -> Void
+    let onRemoveFileAttachment: (ComposerFileAttachment) -> Void
     let onRespondToPendingUserInput: ([String: [String]]) -> Void
     let onDismissPendingUserInput: () -> Void
     let onImplementPlan: () -> Void
@@ -40,6 +42,7 @@ struct ConversationComposerContentView: View {
 
     init(
         attachedImage: UIImage?,
+        attachedFiles: [ComposerFileAttachment] = [],
         collaborationMode: AppModeKind,
         activePlanProgress: AppPlanProgressSnapshot?,
         pendingUserInputRequest: PendingUserInputRequest?,
@@ -57,6 +60,7 @@ struct ConversationComposerContentView: View {
         allowsVoiceInput: Bool = true,
         showAttachMenu: Binding<Bool>,
         onClearAttachment: @escaping () -> Void,
+        onRemoveFileAttachment: @escaping (ComposerFileAttachment) -> Void = { _ in },
         onRespondToPendingUserInput: @escaping ([String: [String]]) -> Void,
         onDismissPendingUserInput: @escaping () -> Void = {},
         onImplementPlan: @escaping () -> Void = {},
@@ -75,6 +79,7 @@ struct ConversationComposerContentView: View {
         composerSelectionRange: Binding<NSRange> = .constant(NSRange(location: 0, length: 0))
     ) {
         self.attachedImage = attachedImage
+        self.attachedFiles = attachedFiles
         self.collaborationMode = collaborationMode
         self.activePlanProgress = activePlanProgress
         self.pendingUserInputRequest = pendingUserInputRequest
@@ -92,6 +97,7 @@ struct ConversationComposerContentView: View {
         self.allowsVoiceInput = allowsVoiceInput
         _showAttachMenu = showAttachMenu
         self.onClearAttachment = onClearAttachment
+        self.onRemoveFileAttachment = onRemoveFileAttachment
         self.onRespondToPendingUserInput = onRespondToPendingUserInput
         self.onDismissPendingUserInput = onDismissPendingUserInput
         self.onImplementPlan = onImplementPlan
@@ -134,6 +140,15 @@ struct ConversationComposerContentView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
+            }
+
+            if !attachedFiles.isEmpty {
+                ConversationComposerFileChipStrip(
+                    files: attachedFiles,
+                    onRemove: onRemoveFileAttachment
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, attachedImage == nil ? 8 : 6)
             }
 
             VStack(alignment: .trailing, spacing: 0) {
@@ -201,7 +216,7 @@ struct ConversationComposerContentView: View {
                     composerSelectionRange: $composerSelectionRange,
                     voiceManager: voiceManager,
                     isTurnActive: isTurnActive,
-                    hasAttachment: attachedImage != nil,
+                    hasAttachment: attachedImage != nil || !attachedFiles.isEmpty,
                     allowsVoiceInput: allowsVoiceInput,
                     onPasteImage: onPasteImage,
                     onSendText: onSendText,
@@ -218,6 +233,53 @@ struct ConversationComposerContentView: View {
         }
         .frame(maxWidth: LitterPlatform.isRegularSurface(horizontalSizeClass: horizontalSizeClass) ? 760 : .infinity)
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+private struct ConversationComposerFileChipStrip: View {
+    let files: [ComposerFileAttachment]
+    let onRemove: (ComposerFileAttachment) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(files) { file in
+                    HStack(spacing: 5) {
+                        Image(systemName: "doc")
+                            .litterFont(size: 10, weight: .semibold)
+                            .foregroundStyle(LitterTheme.accent)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(file.label)
+                                .litterFont(.caption, weight: .semibold)
+                                .foregroundStyle(LitterTheme.textPrimary)
+                                .lineLimit(1)
+                            Text(file.path)
+                                .litterFont(size: 10)
+                                .foregroundStyle(LitterTheme.textMuted)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: 180, alignment: .leading)
+                        Button {
+                            onRemove(file)
+                        } label: {
+                            Image(systemName: "xmark")
+                                .litterFont(size: 9, weight: .bold)
+                                .foregroundStyle(LitterTheme.accent)
+                                .padding(3)
+                                .background(Circle().fill(LitterTheme.accent.opacity(0.18)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove file \(file.label)")
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(LitterTheme.surfaceLight.opacity(0.72))
+                    )
+                }
+            }
+        }
     }
 }
 

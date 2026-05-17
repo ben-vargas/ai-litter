@@ -1,6 +1,5 @@
 import SwiftUI
 import PhotosUI
-import UniformTypeIdentifiers
 import UIKit
 import os
 
@@ -21,10 +20,10 @@ struct HomeComposerView: View {
 
     @Environment(AppModel.self) private var appModel
     @Environment(AppState.self) private var appState
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var inputText = ""
     @State private var attachedImage: UIImage?
+    @State private var attachedFiles: [ComposerFileAttachment] = []
     @State private var showAttachMenu = false
     @State private var showPhotoPicker = false
     @State private var showCamera = false
@@ -55,9 +54,8 @@ struct HomeComposerView: View {
     }
 
     private var attachSheetDetentHeight: CGFloat {
-        let showsFile = LitterPlatform.isRegularSurface(horizontalSizeClass: horizontalSizeClass)
         let showsCamera = !LitterPlatform.isCatalyst
-        let count = 1 + (showsFile ? 1 : 0) + (showsCamera ? 1 : 0)
+        let count = 2 + (showsCamera ? 1 : 0)
         return count >= 3 ? 260 : 210
     }
 
@@ -65,6 +63,7 @@ struct HomeComposerView: View {
         isComposerFocused
             || !inputText.isEmpty
             || attachedImage != nil
+            || !attachedFiles.isEmpty
             || voiceManager.isRecording
             || voiceManager.isTranscribing
     }
@@ -95,6 +94,7 @@ struct HomeComposerView: View {
 
             ConversationComposerContentView(
                 attachedImage: attachedImage,
+                attachedFiles: attachedFiles,
                 collaborationMode: .default,
                 activePlanProgress: nil,
                 pendingUserInputRequest: nil,
@@ -110,6 +110,9 @@ struct HomeComposerView: View {
                 allowsVoiceInput: project != nil,
                 showAttachMenu: $showAttachMenu,
                 onClearAttachment: { attachedImage = nil },
+                onRemoveFileAttachment: { file in
+                    attachedFiles.removeAll { $0 == file }
+                },
                 onRespondToPendingUserInput: { _ in },
                 onSteerQueuedFollowUp: { _ in },
                 onDeleteQueuedFollowUp: { _ in },
@@ -143,10 +146,10 @@ struct HomeComposerView: View {
             onActiveChange?(active)
         }
         .dropDestination(for: URL.self) { urls, _ in
-            guard let image = urls.lazy.compactMap({ ConversationAttachmentSupport.loadImageFile(at: $0) }).first else {
+            guard let picked = urls.lazy.compactMap({ ConversationAttachmentSupport.loadPickedFile(at: $0) }).first else {
                 return false
             }
-            attachedImage = image
+            applyPickedFile(picked)
             return true
         }
         .dropDestination(for: Data.self) { items, _ in
@@ -162,10 +165,10 @@ struct HomeComposerView: View {
                     showAttachMenu = false
                     showPhotoPicker = true
                 },
-                onChooseFile: LitterPlatform.isRegularSurface(horizontalSizeClass: horizontalSizeClass) ? {
+                onChooseFile: {
                     showAttachMenu = false
                     showFileImporter = true
-                } : nil,
+                },
                 onTakePhoto: LitterPlatform.isCatalyst ? nil : {
                     showAttachMenu = false
                     showCamera = true
@@ -177,12 +180,13 @@ struct HomeComposerView: View {
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhoto, matching: .images)
         .fileImporter(
             isPresented: $showFileImporter,
-            allowedContentTypes: [.image],
+            allowedContentTypes: ConversationAttachmentSupport.supportedFileContentTypes,
             allowsMultipleSelection: false
         ) { result in
             guard case let .success(urls) = result,
                   let url = urls.first else { return }
-            attachedImage = ConversationAttachmentSupport.loadImageFile(at: url)
+            guard let picked = ConversationAttachmentSupport.loadPickedFile(at: url) else { return }
+            applyPickedFile(picked)
         }
         .onChange(of: selectedPhoto) { _, item in
             guard let item else { return }
@@ -213,7 +217,8 @@ struct HomeComposerView: View {
     private func handleSend() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let image = attachedImage
-        guard !text.isEmpty || image != nil else { return }
+        let files = attachedFiles
+        guard !text.isEmpty || image != nil || !files.isEmpty else { return }
         guard !isSubmitting else { return }
         guard let project else {
             errorMessage = "Pick a project before sending."
@@ -231,6 +236,7 @@ struct HomeComposerView: View {
                 }
                 inputText = ""
                 attachedImage = nil
+                attachedFiles = []
                 composerSelectionRange = NSRange(location: 0, length: 0)
                 isComposerFocused = false
 
@@ -272,6 +278,7 @@ struct HomeComposerView: View {
                 let payload = AppComposerPayload(
                     text: text,
                     additionalInputs: additionalInputs,
+                    fileAttachments: files,
                     approvalPolicy: appState.launchApprovalPolicy(for: threadKey),
                     sandboxPolicy: appState.turnSandboxPolicy(for: threadKey),
                     model: modelOverride,
@@ -301,6 +308,17 @@ struct HomeComposerView: View {
             attachedImage = image
         }
         selectedPhoto = nil
+    }
+
+    private func applyPickedFile(_ picked: PickedComposerFile) {
+        switch picked {
+        case .image(let image):
+            attachedImage = image
+        case .file(let file):
+            if !attachedFiles.contains(file) {
+                attachedFiles.append(file)
+            }
+        }
     }
 
     private func stopVoiceRecording() {
