@@ -59,6 +59,7 @@ struct TranscriptScreen: View {
 
 private struct TranscriptBubble: View {
     @EnvironmentObject var theme: WatchThemeStore
+    @Environment(\.watchSize) private var watchSize
     let turn: WatchTranscriptTurn
 
     var body: some View {
@@ -67,7 +68,7 @@ private struct TranscriptBubble: View {
             case .user:
                 Spacer(minLength: 20)
                 Text(turn.text)
-                    .font(WatchTheme.mono(11))
+                    .font(WatchTheme.scaled(11, for: watchSize))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
@@ -84,7 +85,7 @@ private struct TranscriptBubble: View {
 
             case .system:
                 Text(turn.text)
-                    .font(WatchTheme.mono(10))
+                    .font(WatchTheme.scaled(10, for: watchSize))
                     .foregroundStyle(theme.textSecondary)
                     .italic()
                     .padding(.leading, 6)
@@ -97,7 +98,7 @@ private struct TranscriptBubble: View {
 
             case .assistant:
                 Text(turn.text)
-                    .font(WatchTheme.mono(11))
+                    .font(WatchTheme.scaled(11, for: watchSize))
                     .foregroundStyle(theme.textPrimary)
                 Spacer(minLength: 0)
             }

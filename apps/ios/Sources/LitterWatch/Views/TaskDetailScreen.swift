@@ -7,6 +7,7 @@ struct TaskDetailScreen: View {
     @EnvironmentObject var store: WatchAppStore
     @EnvironmentObject var theme: WatchThemeStore
     @Environment(\.isLuminanceReduced) private var isAOD
+    @Environment(\.watchSize) private var watchSize
     let task: WatchTask
 
     var body: some View {
@@ -19,14 +20,14 @@ struct TaskDetailScreen: View {
                 header(for: current)
 
                 Text(current.title)
-                    .font(WatchTheme.mono(13, weight: .bold))
+                    .font(WatchTheme.scaled(13, for: watchSize, weight: .bold))
                     .foregroundStyle(isAOD ? theme.textSecondary : theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if !isAOD {
                     if let subtitle = current.subtitle, !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(WatchTheme.mono(10))
+                            .font(WatchTheme.scaled(10, for: watchSize))
                             .foregroundStyle(theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

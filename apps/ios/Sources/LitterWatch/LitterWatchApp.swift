@@ -128,6 +128,7 @@ struct LitterWatchApp: App {
             WatchRootView()
                 .environmentObject(store)
                 .environmentObject(theme)
+                .environment(\.watchSize, WatchSize.current)
                 .preferredColorScheme(theme.colorScheme)
                 .tint(theme.accent)
         }

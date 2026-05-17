@@ -27,6 +27,7 @@ struct ApprovalScreen: View {
 private struct ApprovalBody: View {
     @EnvironmentObject var store: WatchAppStore
     @EnvironmentObject var theme: WatchThemeStore
+    @Environment(\.watchSize) private var watchSize
     let approval: WatchApproval
 
     var body: some View {
@@ -40,7 +41,7 @@ private struct ApprovalBody: View {
                 }
 
                 Text(approval.command)
-                    .font(WatchTheme.mono(14, weight: .bold))
+                    .font(WatchTheme.scaled(14, for: watchSize, weight: .bold))
                     .foregroundStyle(theme.accent)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -73,9 +74,9 @@ private struct ApprovalBody: View {
                 HStack(spacing: 4) {
                     Button { tap(approve: false) } label: {
                         Text("deny")
-                            .font(WatchTheme.mono(12, weight: .bold))
+                            .font(WatchTheme.scaled(12, for: watchSize, weight: .bold))
                             .foregroundStyle(theme.textPrimary)
-                            .frame(maxWidth: .infinity, minHeight: 34)
+                            .frame(maxWidth: .infinity, minHeight: approvalButtonHeight)
                             .background(
                                 Capsule().fill(theme.surfaceLight)
                                     .overlay(Capsule().stroke(theme.borderHi, lineWidth: 1))
@@ -86,9 +87,9 @@ private struct ApprovalBody: View {
 
                     Button { tap(approve: true) } label: {
                         Text(store.approvalInFlight ? "sending…" : "allow")
-                            .font(WatchTheme.mono(12, weight: .bold))
+                            .font(WatchTheme.scaled(12, for: watchSize, weight: .bold))
                             .foregroundStyle(theme.textOnAccent)
-                            .frame(maxWidth: .infinity, minHeight: 34)
+                            .frame(maxWidth: .infinity, minHeight: approvalButtonHeight)
                             .background(
                                 Capsule().fill(
                                     LinearGradient(
@@ -132,6 +133,14 @@ private struct ApprovalBody: View {
     private func tap(approve: Bool) {
         WKInterfaceDevice.current().play(approve ? .success : .failure)
         store.respond(approve: approve)
+    }
+
+    private var approvalButtonHeight: CGFloat {
+        switch watchSize {
+        case .compact:  return 30
+        case .regular:  return 34
+        case .expanded: return 38
+        }
     }
 
     private var approvalLabel: String {

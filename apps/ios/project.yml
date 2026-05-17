@@ -81,6 +81,7 @@ targets:
         buildPhase: resources
       - path: Sources/LitterLiveActivity/CodexTurnLiveActivity.swift
       - path: Sources/LitterWatch/Models/WatchModels.swift
+      - path: Sources/LitterWatch/Models/WatchSize.swift
       - path: Sources/LitterWatchComplications/LitterServerListPayload.swift
       - path: Sources/LitterWatchComplications/LitterComplicationEntry.swift
     resources:

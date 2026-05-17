@@ -92,6 +92,7 @@ private struct TaskPage: View {
     @EnvironmentObject var store: WatchAppStore
     @EnvironmentObject var theme: WatchThemeStore
     @Environment(\.isLuminanceReduced) private var isAOD
+    @Environment(\.watchSize) private var watchSize
     let task: WatchTask
 
     var body: some View {
@@ -109,14 +110,14 @@ private struct TaskPage: View {
                 }
                 if !task.relativeTime.isEmpty {
                     Text(task.relativeTime)
-                        .font(WatchTheme.mono(10))
+                        .font(WatchTheme.scaled(10, for: watchSize))
                         .foregroundStyle(theme.textMuted)
                         .fixedSize()
                 }
             }
 
             Text(task.title)
-                .font(WatchTheme.mono(15, weight: .bold))
+                .font(WatchTheme.scaled(15, for: watchSize, weight: .bold))
                 .foregroundStyle(titleColor)
                 .lineLimit(3)
                 .multilineTextAlignment(.leading)
@@ -127,7 +128,7 @@ private struct TaskPage: View {
 
                 if let subtitle = task.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(WatchTheme.mono(11))
+                        .font(WatchTheme.scaled(11, for: watchSize))
                         .foregroundStyle(subtitleColor)
                         .lineLimit(3)
                         .truncationMode(.tail)
@@ -136,7 +137,7 @@ private struct TaskPage: View {
 
                 if task.status == .running, let line = telemetryLine {
                     Text(line)
-                        .font(WatchTheme.mono(10))
+                        .font(WatchTheme.scaled(10, for: watchSize))
                         .foregroundStyle(theme.textMuted)
                         .lineLimit(1)
                 }
@@ -180,7 +181,7 @@ private struct TaskPage: View {
             }
             Spacer(minLength: 0)
         }
-        .font(WatchTheme.mono(10))
+        .font(WatchTheme.scaled(10, for: watchSize))
     }
 
     private var ctaRow: some View {
@@ -192,9 +193,9 @@ private struct TaskPage: View {
                     Image(systemName: "arrow.up.right")
                         .font(.system(size: 10, weight: .bold))
                     Text("open")
-                        .font(WatchTheme.mono(11, weight: .bold))
+                        .font(WatchTheme.scaled(11, for: watchSize, weight: .bold))
                 }
-                .frame(maxWidth: .infinity, minHeight: 28)
+                .frame(maxWidth: .infinity, minHeight: ctaHeight)
                 .foregroundStyle(theme.textOnAccent)
                 .background(
                     Capsule().fill(
@@ -214,7 +215,7 @@ private struct TaskPage: View {
             } label: {
                 Image(systemName: "eye.slash")
                     .font(.system(size: 11, weight: .bold))
-                    .frame(width: 32, height: 28)
+                    .frame(width: 32, height: ctaHeight)
                     .foregroundStyle(theme.textSecondary)
                     .background(
                         Capsule()
@@ -224,6 +225,14 @@ private struct TaskPage: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Hide task")
+        }
+    }
+
+    private var ctaHeight: CGFloat {
+        switch watchSize {
+        case .compact:  return 26
+        case .regular:  return 28
+        case .expanded: return 32
         }
     }
 
@@ -260,6 +269,7 @@ private struct TaskPage: View {
 
 private struct NewTaskPage: View {
     @EnvironmentObject var theme: WatchThemeStore
+    @Environment(\.watchSize) private var watchSize
 
     var body: some View {
         VStack(spacing: 10) {
@@ -269,9 +279,9 @@ private struct NewTaskPage: View {
             } label: {
                 VStack(spacing: 8) {
                     Image(systemName: "mic.fill")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 22 * watchSize.fontScale, weight: .bold))
                         .foregroundStyle(theme.textOnAccent)
-                        .frame(width: 56, height: 56)
+                        .frame(width: micDiameter, height: micDiameter)
                         .background(
                             Circle().fill(
                                 LinearGradient(colors: [theme.accentSoft, theme.accent],
@@ -279,10 +289,10 @@ private struct NewTaskPage: View {
                             )
                         )
                     Text("new task")
-                        .font(WatchTheme.mono(13, weight: .bold))
+                        .font(WatchTheme.scaled(13, for: watchSize, weight: .bold))
                         .foregroundStyle(theme.textPrimary)
                     Text("dictate a prompt")
-                        .font(WatchTheme.mono(10))
+                        .font(WatchTheme.scaled(10, for: watchSize))
                         .foregroundStyle(theme.textSecondary)
                 }
             }
@@ -291,6 +301,14 @@ private struct NewTaskPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 6)
+    }
+
+    private var micDiameter: CGFloat {
+        switch watchSize {
+        case .compact:  return 50
+        case .regular:  return 56
+        case .expanded: return 64
+        }
     }
 }
 

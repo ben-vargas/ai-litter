@@ -174,6 +174,7 @@ private struct VoiceTurnRow: View {
 
 private struct MicRing: View {
     @EnvironmentObject var theme: WatchThemeStore
+    @Environment(\.watchSize) private var watchSize
     let audioLevel: Double
     let isMuted: Bool
     let mode: WatchVoiceState.Mode
@@ -184,7 +185,7 @@ private struct MicRing: View {
             ZStack {
                 Circle()
                     .stroke(theme.accent.opacity(0.35), lineWidth: 2)
-                    .frame(width: 96, height: 96)
+                    .frame(width: outerDiameter, height: outerDiameter)
                     .scaleEffect(scale)
                     .animation(.easeOut(duration: 0.18), value: scale)
                 Circle()
@@ -196,16 +197,19 @@ private struct MicRing: View {
                             endRadius: 50
                         )
                     )
-                    .frame(width: 80, height: 80)
+                    .frame(width: innerDiameter, height: innerDiameter)
                     .shadow(color: theme.accent.opacity(isMuted ? 0.0 : 0.45), radius: 12)
                 Image(systemName: isMuted ? "mic.slash.fill" : "mic.fill")
-                    .font(.system(size: 30, weight: .heavy))
+                    .font(.system(size: 30 * watchSize.fontScale, weight: .heavy))
                     .foregroundStyle(theme.textOnAccent)
             }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isMuted ? "Unmute" : "Mute")
     }
+
+    private var outerDiameter: CGFloat { 96 * watchSize.fontScale }
+    private var innerDiameter: CGFloat { 80 * watchSize.fontScale }
 
     private var scale: CGFloat {
         let clamped = max(0, min(1, audioLevel))
