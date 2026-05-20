@@ -723,6 +723,8 @@ private struct HomeNavigationView: View {
         /// Saved-app detail, pushed when the user taps a home-screen thread
         /// that has saved apps (or when routed from the AppsList).
         case savedApp(appId: String)
+        /// Local on-device terminal backed by the shared Rust terminal session.
+        case terminal(preferredAlleycatNodeId: String?)
     }
 
     private var connectedServerOptions: [DirectoryPickerServerOption] {
@@ -737,6 +739,15 @@ private struct HomeNavigationView: View {
 
     private var isHomeRouteActive: Bool {
         navigationPath.isEmpty
+    }
+
+    private var terminalLauncher: (() -> Void)? {
+        #if targetEnvironment(macCatalyst)
+        return nil
+        #else
+        guard experimentalFeatures.isEnabled(.terminal) else { return nil }
+        return { navigationPath.append(.terminal(preferredAlleycatNodeId: nil)) }
+        #endif
     }
 
     private var pinnedThreadHydrationSignature: String {
@@ -911,7 +922,8 @@ private struct HomeNavigationView: View {
                     ConversationInfoView(
                         threadKey: nil,
                         serverId: serverId,
-                        onOpenWallpaper: { navigationPath.append(.serverWallpaperSelection(serverId: serverId)) }
+                        onOpenWallpaper: { navigationPath.append(.serverWallpaperSelection(serverId: serverId)) },
+                        onOpenShell: remoteShellLauncher(for: serverId)
                     )
                 case let .serverWallpaperSelection(serverId):
                     WallpaperSelectionView(
@@ -944,6 +956,11 @@ private struct HomeNavigationView: View {
                     AppsListView()
                 case .savedApp(let appId):
                     SavedAppDetailView(appId: appId)
+                case let .terminal(preferredAlleycatNodeId):
+                    TerminalScreen(
+                        cwd: preferredTerminalWorkingDirectory(),
+                        preferredAlleycatNodeId: preferredAlleycatNodeId
+                    )
                 }
             }
         }
@@ -1157,6 +1174,41 @@ private struct HomeNavigationView: View {
         }
 
         return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.path ?? "/"
+    }
+
+    private func preferredTerminalWorkingDirectory() -> String? {
+        let current = appState.currentCwd.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !current.isEmpty { return current }
+
+        let stored = workDir.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !stored.isEmpty { return stored }
+
+        return nil
+    }
+
+    private func remoteShellLauncher(for serverId: String) -> (() -> Void)? {
+        guard experimentalFeatures.isEnabled(.terminal),
+              let nodeId = savedAlleycatNodeId(for: serverId) else {
+            return nil
+        }
+        return {
+            navigationPath.append(.terminal(preferredAlleycatNodeId: nodeId))
+        }
+    }
+
+    private func savedAlleycatNodeId(for serverId: String) -> String? {
+        guard let saved = SavedServerStore.rememberedServers().first(where: { $0.id == serverId }),
+              let nodeId = normalizedNonEmpty(saved.alleycatNodeId),
+              let token = try? AlleycatCredentialStore.shared.loadToken(nodeId: nodeId),
+              !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return nodeId
+    }
+
+    private func normalizedNonEmpty(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func openServerSessions(_ server: HomeDashboardServer) {
@@ -1446,6 +1498,7 @@ private struct HomeNavigationView: View {
             onThreadCreated: { key in homeDashboardModel.pinThread(key) },
             onShowSettings: { appState.showSettings = true },
             onShowApps: savedAppsStore.apps.isEmpty ? nil : { navigationPath.append(.appsList) },
+            onShowTerminal: terminalLauncher,
             onPinThread: pinThread,
             onUnpinThread: unpinThread,
             onHideThread: hideThread,
@@ -1488,6 +1541,7 @@ private struct HomeNavigationView: View {
             onThreadCreated: { key in homeDashboardModel.pinThread(key) },
             onShowSettings: { appState.showSettings = true },
             onShowApps: savedAppsStore.apps.isEmpty ? nil : { navigationPath.append(.appsList) },
+            onShowTerminal: terminalLauncher,
             onPinThread: pinThread,
             onUnpinThread: unpinThread,
             onHideThread: hideThread,

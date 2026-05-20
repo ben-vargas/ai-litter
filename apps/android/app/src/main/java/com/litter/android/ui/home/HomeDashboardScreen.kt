@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.ViewList
 import androidx.compose.material.icons.outlined.ViewQuilt
@@ -138,6 +139,7 @@ fun HomeDashboardScreen(
     onThreadCreated: (ThreadKey) -> Unit,
     onStartVoice: (() -> Unit)? = null,
     onOpenSavedApp: ((String) -> Unit)? = null,
+    onOpenTerminal: (() -> Unit)? = null,
 ) {
     val appModel = LocalAppModel.current
     val context = LocalContext.current
@@ -593,6 +595,16 @@ fun HomeDashboardScreen(
                         Icon(
                             Icons.Outlined.GridView,
                             contentDescription = "Apps",
+                            tint = LitterTheme.textSecondary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+                if (onOpenTerminal != null) {
+                    IconButton(onClick = onOpenTerminal, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Outlined.Terminal,
+                            contentDescription = "Terminal",
                             tint = LitterTheme.textSecondary,
                             modifier = Modifier.size(20.dp),
                         )

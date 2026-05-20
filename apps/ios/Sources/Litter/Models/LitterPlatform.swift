@@ -35,33 +35,76 @@ enum LitterPlatform {
     static let supportsLocalRuntime = !isCatalyst
     static let supportsVoiceRuntime = !isCatalyst
 
+    private enum LocalRuntimeBootstrapState {
+        case idle
+        case starting
+        case ready
+    }
+
+    private nonisolated(unsafe) static var bootstrapState: LocalRuntimeBootstrapState = .idle
+    private static let bootstrapLock = NSLock()
+
     static func bootstrapLocalRuntimeIfNeeded() {
 #if !targetEnvironment(macCatalyst)
+        guard beginLocalRuntimeBootstrap() else { return }
+
         migrateWorkDirIfHostPath()
         let fm = FileManager.default
         guard let bundleFs = Bundle.main.url(forResource: "fs", withExtension: nil) else {
             NSLog("[ish] bundled fs not found")
+            finishLocalRuntimeBootstrap(.idle)
             return
         }
         let appSupport = try? fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let docs = try? fm.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         guard let appSupport, let docs else {
             NSLog("[ish] could not resolve sandbox dirs")
+            finishLocalRuntimeBootstrap(.idle)
             return
         }
-        do {
-            try ishBootstrap(
-                bundleFsPath: bundleFs.path,
-                applicationSupportDir: appSupport.path,
-                documentsDir: docs.path
-            )
-            Task { @MainActor in
-                await UserMountStore.shared.loadAndRemountAll()
+        let bundlePath = bundleFs.path
+        let appSupportPath = appSupport.path
+        let docsPath = docs.path
+        // First-launch rootfs extraction can take 10-30s. Bootstrapping
+        // synchronously on the main actor froze the UI and made the
+        // Terminal route race the kernel boot. Run it on a background
+        // queue and let `instance_or_wait` on the Rust side handle the
+        // race so the UI stays responsive.
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try ishBootstrap(
+                    bundleFsPath: bundlePath,
+                    applicationSupportDir: appSupportPath,
+                    documentsDir: docsPath
+                )
+                finishLocalRuntimeBootstrap(.ready)
+                Task { @MainActor in
+                    await UserMountStore.shared.loadAndRemountAll()
+                }
+            } catch {
+                NSLog("[ish] bootstrap failed: \(error)")
+                finishLocalRuntimeBootstrap(.idle)
             }
-        } catch {
-            NSLog("[ish] bootstrap failed: \(error)")
         }
 #endif
+    }
+
+    private static func beginLocalRuntimeBootstrap() -> Bool {
+        bootstrapLock.lock()
+        defer { bootstrapLock.unlock() }
+        switch bootstrapState {
+        case .idle:
+            bootstrapState = .starting
+            return true
+        case .starting, .ready:
+            return false
+        }
+    }
+
+    private static func finishLocalRuntimeBootstrap(_ state: LocalRuntimeBootstrapState) {
+        bootstrapLock.lock()
+        bootstrapState = state
+        bootstrapLock.unlock()
     }
 
     /// iSH cannot see iOS sandbox paths. If the persisted `workDir` is one

@@ -459,6 +459,8 @@ pub struct AppSnapshotRecord {
     pub pending_approvals: Vec<PendingApproval>,
     pub pending_user_inputs: Vec<PendingUserInputRequest>,
     pub voice_session: AppVoiceSessionSnapshot,
+    pub terminal_sessions: Vec<crate::store::snapshot::TerminalSessionSnapshot>,
+    pub active_terminal_id: Option<String>,
 }
 
 impl TryFrom<AppSnapshot> for AppSnapshotRecord {
@@ -536,6 +538,8 @@ impl TryFrom<AppSnapshot> for AppSnapshotRecord {
             pending_approvals: snapshot.pending_approvals,
             pending_user_inputs: snapshot.pending_user_inputs,
             voice_session: snapshot.voice_session,
+            terminal_sessions: snapshot.terminal_sessions,
+            active_terminal_id: snapshot.active_terminal_id,
         })
     }
 }

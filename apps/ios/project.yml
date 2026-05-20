@@ -96,6 +96,12 @@ targets:
       - path: Sources/Litter/Resources/home_cat_entrance.png
     dependencies:
       - sdk: CarPlay.framework
+      - sdk: CoreGraphics.framework
+      - sdk: CoreText.framework
+      - sdk: CoreVideo.framework
+      - sdk: IOSurface.framework
+      - sdk: Metal.framework
+      - sdk: QuartzCore.framework
       - sdk: Security.framework
       - sdk: SystemConfiguration.framework
       - sdk: Network.framework
@@ -124,7 +130,7 @@ targets:
           APP_CODE_SIGN_STYLE: Automatic
           PROVISIONING_PROFILE_SPECIFIER: "$(APP_PROVISIONING_PROFILE_SPECIFIER)"
           APP_PROVISIONING_PROFILE_SPECIFIER: ""
-          OTHER_LDFLAGS: "$(inherited) -lc++ -lz -lresolv -lcodex_mobile_client"
+          OTHER_LDFLAGS: "$(inherited) -lc++ -lz -lresolv -lcodex_mobile_client -lghostty"
         Release:
           CODE_SIGN_STYLE: "$(APP_CODE_SIGN_STYLE)"
           APP_CODE_SIGN_STYLE: Automatic
@@ -132,6 +138,7 @@ targets:
           APP_CODE_SIGN_IDENTITY: ""
           PROVISIONING_PROFILE_SPECIFIER: "$(APP_PROVISIONING_PROFILE_SPECIFIER)"
           APP_PROVISIONING_PROFILE_SPECIFIER: ""
+          OTHER_LDFLAGS: "$(inherited) -lc++ -lz -lresolv -lcodex_mobile_client -lghostty"
   LitterMac:
     type: application
     platform: auto

@@ -109,6 +109,14 @@ pub struct MobileClient {
     pub(crate) ssh_bootstrap_flows:
         Arc<tokio::sync::Mutex<HashMap<String, ManagedSshBootstrapFlow>>>,
     alleycat_restart_targets: Arc<StdMutex<HashMap<String, AlleycatRestartTarget>>>,
+    /// Live terminal session handles keyed by session id. The store
+    /// holds the FFI-visible snapshot
+    /// (`AppSnapshot.terminal_sessions`); these are the strong
+    /// references that keep the underlying PTY / SSH channel alive while
+    /// view-scoped renderers come and go. Cleared per-id when the
+    /// session exits or the caller explicitly closes it.
+    pub(crate) terminal_sessions:
+        Arc<StdMutex<HashMap<String, Arc<crate::terminal::TerminalSession>>>>,
 }
 
 /// State for a single in-flight guided SSH connect.
@@ -712,6 +720,7 @@ impl MobileClient {
             alleycat_secret_key: Arc::new(StdMutex::new(None)),
             ssh_bootstrap_flows: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
             alleycat_restart_targets: Arc::new(StdMutex::new(HashMap::new())),
+            terminal_sessions: Arc::new(StdMutex::new(HashMap::new())),
         }
     }
 
@@ -3643,6 +3652,106 @@ impl MobileClient {
         self.subscribe_updates()
     }
 
+    /// Open a new terminal session, store the strong handle on the
+    /// client, register a snapshot entry on the reducer, and wire output
+    /// bytes back into the ring buffer. Returns the generated session
+    /// id.
+    pub async fn open_terminal_session(
+        &self,
+        kind: crate::terminal::TerminalBackendKind,
+        size: crate::terminal::TerminalSize,
+        trust_store: Option<Arc<crate::terminal::TerminalSshTrustStore>>,
+    ) -> Result<String, crate::terminal::TerminalError> {
+        let session = match trust_store {
+            Some(store) => {
+                crate::terminal::TerminalSession::open_with_trust_store(kind.clone(), size, store)
+                    .await?
+            }
+            None => crate::terminal::TerminalSession::open(kind.clone(), size).await?,
+        };
+        let session = Arc::new(session);
+        let id = uuid::Uuid::new_v4().to_string();
+        self.terminal_sessions
+            .lock()
+            .expect("terminal_sessions poisoned")
+            .insert(id.clone(), Arc::clone(&session));
+        self.app_store
+            .open_terminal_session_record(id.clone(), kind, size.cols, size.rows);
+
+        // Subscribe to the session's output to feed the ring buffer.
+        let reducer = Arc::clone(&self.app_store);
+        let id_for_listener = id.clone();
+        let strong = Arc::clone(&session);
+        let sessions = Arc::clone(&self.terminal_sessions);
+        let listener: Box<dyn crate::terminal::TerminalOutputListener> =
+            Box::new(TerminalRingListener {
+                reducer,
+                id: id_for_listener,
+                sessions,
+            });
+        strong.subscribe_output(listener);
+        Ok(id)
+    }
+
+    /// Close a terminal session: drop the strong handle (which kills the
+    /// underlying backend on the last reference being released), then
+    /// mark the snapshot as exited. The snapshot's output_tail is
+    /// retained until [`MobileClient::forget_terminal_session`].
+    pub async fn close_terminal_session(
+        &self,
+        id: &str,
+    ) -> Result<(), crate::terminal::TerminalError> {
+        let session = self
+            .terminal_sessions
+            .lock()
+            .expect("terminal_sessions poisoned")
+            .remove(id);
+        if let Some(session) = session {
+            session.close_session().await?;
+        }
+        self.app_store.mark_terminal_exited(id, 0);
+        Ok(())
+    }
+
+    /// Forget a session entirely (drop the snapshot's buffered output).
+    pub fn forget_terminal_session(&self, id: &str) {
+        self.terminal_sessions
+            .lock()
+            .expect("terminal_sessions poisoned")
+            .remove(id);
+        self.app_store.remove_terminal_session_record(id);
+    }
+
+    /// Return the live session handle for `id`, or `None` if the session
+    /// has been closed.
+    pub fn terminal_session_handle(
+        &self,
+        id: &str,
+    ) -> Option<Arc<crate::terminal::TerminalSession>> {
+        self.terminal_sessions
+            .lock()
+            .expect("terminal_sessions poisoned")
+            .get(id)
+            .cloned()
+    }
+
+    /// Write `bytes` to the currently-active terminal session, if any.
+    /// Returns `Ok(false)` if there is no active session.
+    pub async fn write_to_active_terminal(
+        &self,
+        bytes: Vec<u8>,
+    ) -> Result<bool, crate::terminal::TerminalError> {
+        let active_id = self.app_store.snapshot().active_terminal_id.clone();
+        let Some(id) = active_id else {
+            return Ok(false);
+        };
+        let Some(session) = self.terminal_session_handle(&id) else {
+            return Ok(false);
+        };
+        session.write_input(bytes).await?;
+        Ok(true)
+    }
+
     pub fn set_active_thread(&self, key: Option<ThreadKey>) {
         self.app_store.set_active_thread(key);
     }
@@ -3732,6 +3841,27 @@ impl MobileClient {
     /// If `project_root` is `None`, all entries for the server are cleared.
     pub fn invalidate_ambient_suggestions(&self, server_id: &str, project_root: Option<&str>) {
         crate::ambient_suggestions::invalidate_cache(&self.ambient_cache, server_id, project_root);
+    }
+}
+
+/// Listener that feeds session output bytes into the reducer's ring
+/// buffer and marks the session exited when the backend reports exit.
+struct TerminalRingListener {
+    reducer: Arc<AppStoreReducer>,
+    id: String,
+    sessions: Arc<StdMutex<HashMap<String, Arc<crate::terminal::TerminalSession>>>>,
+}
+
+impl crate::terminal::TerminalOutputListener for TerminalRingListener {
+    fn on_bytes(&self, data: Vec<u8>) {
+        self.reducer.append_terminal_output(&self.id, &data);
+    }
+    fn on_exit(&self, code: i32) {
+        self.reducer.mark_terminal_exited(&self.id, code);
+        self.sessions
+            .lock()
+            .expect("terminal_sessions poisoned")
+            .remove(&self.id);
     }
 }
 

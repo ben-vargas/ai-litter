@@ -39,6 +39,7 @@ ANDROID_DEVICE_RUN_ARTIFACTS_DIR ?= $(ROOT)/artifacts/android-device-run
 ANDROID_EMULATOR_RUN_ARTIFACTS_DIR ?= $(ROOT)/artifacts/android-emulator-run
 ANDROID_DIR := $(ROOT)/apps/android
 ANDROID_JNI := $(ANDROID_DIR)/core/bridge/src/main/jniLibs
+ANDROID_APP_JNI := $(ANDROID_DIR)/app/src/main/jniLibs
 GENERATED_DIR := $(RUST_DIR)/generated
 PATCHES_DIR := $(ROOT)/patches/codex
 
@@ -171,11 +172,22 @@ STAMP_XCGEN := $(STAMPS)/xcgen
 # from the `ish` Rust crate. Bump and re-run `make alpine-fs` to upgrade.
 ALPINE_FS_VERSION := v0.1.1
 STAMP_ALPINE_FS := $(STAMPS)/alpine-fs-$(ALPINE_FS_VERSION)
+STAMP_ANDROID_ALPINE_FS := $(STAMPS)/android-alpine-fs-$(ALPINE_FS_VERSION)
+PROOT_COMMIT := ee10b279a38d34b6704345bc448d18f019ca1b49
+TALLOC_VERSION := 2.4.3
+STAMP_PROOT_ANDROID = $(STAMPS)/proot-android-$(PROOT_COMMIT)-talloc-$(TALLOC_VERSION)-$(ANDROID_ABIS_SAFE)
+GHOSTTY_DIR := $(ROOT)/shared/third_party/ghostty
+GHOSTTY_COMMIT := $(shell git -C $(GHOSTTY_DIR) rev-parse --short=12 HEAD 2>/dev/null || echo missing)
+GHOSTTY_PATCH_FILES := $(wildcard $(ROOT)/patches/ghostty/*.patch)
+GHOSTTY_PATCH_FINGERPRINT := $(shell cat $(GHOSTTY_PATCH_FILES) 2>/dev/null | shasum -a 256 | cut -c1-12)
+STAMP_SYNC_GHOSTTY := $(STAMPS)/sync-ghostty-$(GHOSTTY_COMMIT)-$(GHOSTTY_PATCH_FINGERPRINT)
+STAMP_GHOSTTY_IOS := $(STAMPS)/ghostty-ios-$(GHOSTTY_COMMIT)-$(GHOSTTY_PATCH_FINGERPRINT)
 
 empty :=
 space := $(empty) $(empty)
 ANDROID_ABIS_SAFE := $(subst $(space),_,$(subst /,_,$(ANDROID_ABIS)))
 ANDROID_RUST_PROFILE_SAFE := $(subst /,_,$(ANDROID_RUST_PROFILE))
+STAMP_GHOSTTY_ANDROID := $(STAMPS)/ghostty-android-$(GHOSTTY_COMMIT)-$(GHOSTTY_PATCH_FINGERPRINT)-$(ANDROID_ABIS_SAFE)
 STAMP_RUST_ANDROID := $(STAMPS)/rust-android-$(ANDROID_RUST_PROFILE_SAFE)-$(ANDROID_ABIS_SAFE)
 ANDROID_RUST_SOURCES := $(shell find $(RUST_DIR) \
 	-path '*/target' -prune -o \
@@ -187,9 +199,11 @@ $(shell mkdir -p $(STAMPS))
 .PHONY: all ios ios-sim ios-sim-fast ios-sim-run ios-device ios-device-fast ios-device-run ios-device-stop ios-run verify-ios-project catalyst catalyst-run catalyst-fast catalyst-fast-run mac-direct mac-direct-run mac-direct-fast mac-direct-fast-run \
 	android android-fast android-tools android-emulator-fast android-emulator-run android-device-run android-release android-debug android-install android-emulator-install \
 	rust-ios rust-ios-package rust-ios-device-release rust-mac-release rust-ios-device-fast rust-ios-sim-fast rust-ios-macabi-fast rust-android rust-check rust-test rust-host-dev \
+	android-alpine-fs proot-android \
+	ghostty-ios ghostty-android \
 	alleycat-main \
 	bindings bindings-swift bindings-kotlin \
-	sync patch unpatch xcgen alpine-fs \
+	sync patch unpatch sync-ghostty unpatch-ghostty xcgen alpine-fs \
 	ios-build ios-build-sim ios-build-sim-fast ios-build-device ios-build-device-fast \
 	watch watch-sim watch-sim-run watch-device watch-typecheck watch-register \
 	test test-rust test-ios test-android \
@@ -351,7 +365,7 @@ ios-run: ios
 	@open $(IOS_DIR)/Litter.xcodeproj
 
 android: android-fast
-android-fast: rust-android android-tools android-debug
+android-fast: rust-android android-tools android-alpine-fs proot-android android-debug
 android-tools:
 	@echo "==> Downloading bundled Android CLI tools..."
 	@$(ROOT)/tools/scripts/download-android-tools.sh
@@ -380,7 +394,7 @@ android-device-run: android-fast
 
 android-release: ANDROID_RUST_PROFILE=release
 android-release: ANDROID_ABIS=$(ANDROID_RELEASE_ABIS)
-android-release: rust-android android-tools
+android-release: rust-android android-tools android-alpine-fs proot-android
 	@echo "==> Building Android release..."
 	@cd $(ANDROID_DIR) && $(ANDROID_ENV) ./gradlew :app:assembleRelease
 
@@ -389,27 +403,27 @@ rust-ios: rust-ios-package
 alleycat-main:
 	@$(UPDATE_ALLEYCAT_MAIN) --all
 
-rust-ios-package: alleycat-main $(STAMP_SYNC)
+rust-ios-package: alleycat-main $(STAMP_SYNC) $(STAMP_GHOSTTY_IOS)
 	@echo "==> Packaging Rust for iOS (device + simulator + xcframework)..."
 	@cd $(ROOT) && $(PACKAGE_CARGO_ENV) $(IOS_SCRIPTS)/build-rust.sh --preserve-current $(CARGO_FEATURES)
 
-rust-ios-device-release: alleycat-main $(STAMP_SYNC)
+rust-ios-device-release: alleycat-main $(STAMP_SYNC) $(STAMP_GHOSTTY_IOS)
 	@echo "==> Building Rust for iOS release archive prep (device staticlib + headers)..."
 	@cd $(ROOT) && $(PACKAGE_CARGO_ENV) $(IOS_SCRIPTS)/build-rust.sh --preserve-current --device-only $(CARGO_FEATURES)
 
-rust-mac-release: alleycat-main $(STAMP_SYNC)
+rust-mac-release: alleycat-main $(STAMP_SYNC) $(STAMP_GHOSTTY_IOS)
 	@echo "==> Building Rust for Mac Catalyst release archive prep (macabi staticlib + headers)..."
 	@cd $(ROOT) && $(PACKAGE_CARGO_ENV) $(IOS_SCRIPTS)/build-rust.sh --preserve-current --macabi-only $(CARGO_FEATURES)
 
-rust-ios-device-fast: alleycat-main $(STAMP_SYNC)
+rust-ios-device-fast: alleycat-main $(STAMP_SYNC) $(STAMP_GHOSTTY_IOS)
 	@echo "==> Building Rust for fast iOS device iteration (raw staticlib + headers)..."
 	@cd $(ROOT) && $(DEV_CARGO_ENV) $(IOS_SCRIPTS)/build-rust.sh --preserve-current --fast-device $(CARGO_FEATURES)
 
-rust-ios-sim-fast: alleycat-main $(STAMP_SYNC)
+rust-ios-sim-fast: alleycat-main $(STAMP_SYNC) $(STAMP_GHOSTTY_IOS)
 	@echo "==> Building Rust for fast iOS simulator iteration (raw staticlib + headers)..."
 	@cd $(ROOT) && $(DEV_CARGO_ENV) $(IOS_SCRIPTS)/build-rust.sh --preserve-current --fast-sim $(CARGO_FEATURES)
 
-rust-ios-macabi-fast: alleycat-main $(STAMP_SYNC)
+rust-ios-macabi-fast: alleycat-main $(STAMP_SYNC) $(STAMP_GHOSTTY_IOS)
 	@echo "==> Building Rust for fast Mac Catalyst iteration (raw macabi staticlib + headers, host arch only)..."
 	@cd $(ROOT) && $(DEV_CARGO_ENV) $(IOS_SCRIPTS)/build-rust.sh --preserve-current --fast-macabi $(CARGO_FEATURES)
 
@@ -446,9 +460,39 @@ rust-shellcheck:
 rust-host-dev: rust-check rust-test
 
 rust-android: $(STAMP_RUST_ANDROID)
-$(STAMP_RUST_ANDROID): $(STAMP_SYNC) $(STAMP_BINDINGS_K) $(ANDROID_RUST_SOURCES) tools/scripts/build-android-rust.sh Makefile | alleycat-main
+$(STAMP_RUST_ANDROID): $(STAMP_SYNC) $(STAMP_BINDINGS_K) $(STAMP_GHOSTTY_ANDROID) $(ANDROID_RUST_SOURCES) tools/scripts/build-android-rust.sh Makefile | alleycat-main
 	@echo "==> Building Rust for Android..."
 	@cd $(ROOT) && $(ANDROID_ENV) ANDROID_ABIS="$(ANDROID_ABIS)" ANDROID_RUST_PROFILE="$(ANDROID_RUST_PROFILE)" $(DEV_CARGO_ENV) ./tools/scripts/build-android-rust.sh
+	@touch $@
+
+sync-ghostty: $(STAMP_SYNC_GHOSTTY)
+$(STAMP_SYNC_GHOSTTY): $(GHOSTTY_PATCH_FILES) apps/ios/scripts/sync-ghostty.sh Makefile
+	@echo "==> Syncing ghostty submodule + applying Litter patches..."
+	@$(IOS_SCRIPTS)/sync-ghostty.sh --preserve-current
+	@touch $@
+
+ghostty-ios: $(STAMP_GHOSTTY_IOS)
+$(STAMP_GHOSTTY_IOS): $(STAMP_SYNC_GHOSTTY) shared/third_party/ghostty/build.zig apps/ios/scripts/build-ghostty.sh Makefile
+	@echo "==> Building Ghostty renderer for iOS..."
+	@cd $(ROOT) && $(IOS_SCRIPTS)/build-ghostty.sh
+	@touch $@
+
+ghostty-android: $(STAMP_GHOSTTY_ANDROID)
+$(STAMP_GHOSTTY_ANDROID): $(STAMP_SYNC_GHOSTTY) shared/third_party/ghostty/build.zig tools/scripts/build-ghostty-android.sh Makefile
+	@echo "==> Building Ghostty renderer for Android..."
+	@cd $(ROOT) && ANDROID_ABIS="$(ANDROID_ABIS)" ./tools/scripts/build-ghostty-android.sh
+	@touch $@
+
+android-alpine-fs: $(STAMP_ANDROID_ALPINE_FS)
+$(STAMP_ANDROID_ALPINE_FS): apps/android/scripts/download-alpine-fs.sh Makefile
+	@echo "==> Fetching Android alpine-fs $(ALPINE_FS_VERSION)..."
+	@ALPINE_FS_VERSION=$(ALPINE_FS_VERSION) $(ANDROID_DIR)/scripts/download-alpine-fs.sh
+	@touch $@
+
+proot-android: $(STAMP_PROOT_ANDROID)
+$(STAMP_PROOT_ANDROID): tools/scripts/build-proot-android.sh Makefile
+	@echo "==> Building Android proot $(PROOT_COMMIT)..."
+	@cd $(ROOT) && $(ANDROID_ENV) ANDROID_ABIS="$(ANDROID_ABIS)" PROOT_COMMIT="$(PROOT_COMMIT)" TALLOC_VERSION="$(TALLOC_VERSION)" ./tools/scripts/build-proot-android.sh
 	@touch $@
 
 help:
@@ -464,6 +508,10 @@ help:
 		'make rust-ios-sim-fast  fast Rust iOS simulator lane (raw staticlib only)' \
 		'make rust-ios-device-fast fast Rust iOS device lane (raw staticlib only)' \
 		'make rust-ios-macabi-fast fast Rust Mac Catalyst lane (host-arch macabi staticlib only)' \
+		'make android-alpine-fs  download Android proot Alpine rootfs asset' \
+		'make proot-android     build Android proot executable artifacts' \
+		'make ghostty-ios        build pinned Ghostty iOS renderer artifacts' \
+		'make ghostty-android    build pinned Ghostty Android renderer artifacts (requires Android platform patch)' \
 		'make alleycat-main      refresh Alleycat git deps to latest dnakov/alleycat main' \
 		'make catalyst           full Mac Catalyst build (release+LTO macabi staticlib + xcodebuild)' \
 		'make catalyst-run       full Mac Catalyst build + launch' \
@@ -495,6 +543,15 @@ unpatch:
 		fi; \
 	done
 	@rm -f $(STAMP_SYNC)
+
+unpatch-ghostty:
+	@echo "==> Reverting ghostty patches..."
+	@for pf in $(GHOSTTY_PATCH_FILES); do \
+		if git -C $(GHOSTTY_DIR) apply --reverse --check "$$pf" >/dev/null 2>&1; then \
+			git -C $(GHOSTTY_DIR) apply --reverse "$$pf"; \
+		fi; \
+	done
+	@rm -f $(STAMPS)/sync-ghostty-* $(STAMPS)/ghostty-ios-* $(STAMPS)/ghostty-android-*
 
 bindings: bindings-swift bindings-kotlin
 
@@ -759,14 +816,17 @@ clean-rust:
 
 clean-ios:
 	@echo "==> Cleaning iOS artifacts..."
-	@rm -rf $(IOS_FW_DIR)/codex_mobile_client.xcframework $(IOS_GENERATED)
+	@rm -rf $(IOS_FW_DIR)/codex_mobile_client.xcframework $(IOS_FW_DIR)/GhosttyKit.xcframework $(IOS_GENERATED)
 	@rm -rf $(IOS_DIR)/Resources/fs
-	@rm -f $(STAMP_XCGEN) $(STAMP_BINDINGS_S) $(STAMPS)/alpine-fs-*
+	@rm -f $(STAMP_XCGEN) $(STAMP_BINDINGS_S) $(STAMPS)/alpine-fs-* $(STAMPS)/ghostty-ios-*
 
 clean-android:
 	@echo "==> Cleaning Android artifacts..."
-	@rm -rf $(ANDROID_JNI)/arm64-v8a $(ANDROID_JNI)/x86_64
-	@rm -f $(STAMP_BINDINGS_K) $(STAMPS)/rust-android-*
+	@rm -rf $(ANDROID_JNI)/arm64-v8a $(ANDROID_JNI)/x86_64 $(ANDROID_DIR)/core/bridge/src/main/cpp/include/ghostty.h
+	@rm -f $(ANDROID_DIR)/app/src/main/assets/alpine-fs.tar.gz $(ANDROID_DIR)/app/src/main/assets/alpine-fs.tgz $(ANDROID_DIR)/app/src/main/assets/alpine-fs.version
+	@rm -f $(ANDROID_APP_JNI)/arm64-v8a/libproot.so $(ANDROID_APP_JNI)/arm64-v8a/libproot_loader.so $(ANDROID_APP_JNI)/x86_64/libproot.so $(ANDROID_APP_JNI)/x86_64/libproot_loader.so
+	@rm -f $(ANDROID_DIR)/app/src/main/assets/licenses/proot-COPYING.txt $(ANDROID_DIR)/app/src/main/assets/licenses/talloc-COPYING.txt $(ANDROID_DIR)/app/src/main/assets/proot.version
+	@rm -f $(STAMP_BINDINGS_K) $(STAMPS)/rust-android-* $(STAMPS)/ghostty-android-* $(STAMPS)/android-alpine-fs-* $(STAMPS)/proot-android-*
 	@cd $(ANDROID_DIR) && ./gradlew clean 2>/dev/null || true
 
 rebuild-bindings:

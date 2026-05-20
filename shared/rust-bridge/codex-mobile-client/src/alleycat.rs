@@ -256,6 +256,10 @@ impl AlleycatSession {
     pub fn connection(&self) -> Connection {
         self.connection.clone()
     }
+
+    pub(crate) fn close(&self) {
+        <Self as SessionKeepalive>::close(self);
+    }
 }
 
 impl SessionKeepalive for AlleycatSession {
@@ -567,6 +571,34 @@ pub async fn connect_app_server_client(
     Ok((AppServerClient::Remote(remote), session))
 }
 
+pub(crate) async fn connect_jsonl_agent_stream(
+    endpoint: &Endpoint,
+    params: ParsedPairPayload,
+    agent: String,
+) -> Result<(AlleycatStream, Arc<AlleycatSession>), AlleycatError> {
+    let (connection, mut send, mut recv) = open_stream_on(endpoint, &params).await?;
+    write_json_frame(
+        &mut send,
+        &Request::Connect {
+            v: ALLEYCAT_PROTOCOL_VERSION,
+            token: params.token.clone(),
+            agent: agent.clone(),
+            resume: None,
+        },
+    )
+    .await?;
+    let response: Response = read_json_frame(&mut recv).await?;
+    validate_response(&response)?;
+    log_session_info(&params, &agent, response.session.as_ref(), None);
+    let session = Arc::new(AlleycatSession {
+        connection,
+        params,
+        agent,
+        wire: AgentWire::Jsonl,
+    });
+    Ok((AlleycatStream::new(send, recv, None), session))
+}
+
 /// Build the app-wide alleycat iroh `Endpoint`. Called exactly once per
 /// process via `MobileClient::alleycat_endpoint()` — every alleycat
 /// operation thereafter reuses the resulting handle.
@@ -771,7 +803,7 @@ impl From<AgentWireWire> for AgentWire {
 }
 
 #[derive(Debug)]
-struct AlleycatStream {
+pub(crate) struct AlleycatStream {
     send: SendStream,
     recv: RecvStream,
     seq_tracker: Option<Arc<AtomicU64>>,

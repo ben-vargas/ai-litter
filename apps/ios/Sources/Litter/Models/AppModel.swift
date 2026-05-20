@@ -917,6 +917,8 @@ final class AppModel {
             SavedAppsStore.shared.reload()
         case .dynamicWidgetStreaming(let key, let itemId, _, let widget):
             applyStreamingWidget(key: key, itemId: itemId, widget: widget)
+        case .terminalSessionsChanged:
+            await refreshSnapshot()
         }
     }
 

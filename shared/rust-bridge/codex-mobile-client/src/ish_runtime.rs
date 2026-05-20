@@ -52,6 +52,30 @@ impl From<ish_embed_host::IshError> for IshBootstrapError {
 
 static INSTANCE: OnceLock<IshInstance> = OnceLock::new();
 
+pub(crate) fn instance() -> Option<&'static IshInstance> {
+    INSTANCE.get()
+}
+
+/// Wait up to `timeout` for `bootstrap` to finish on another thread. Returns
+/// the live instance once it's published, or `None` if the timeout elapses.
+/// Used by the terminal session opener so a UI tap that races the on-launch
+/// bootstrap doesn't surface a misleading "iSH has not been bootstrapped"
+/// error to the user.
+pub(crate) async fn instance_or_wait(timeout: std::time::Duration) -> Option<&'static IshInstance> {
+    if let Some(instance) = INSTANCE.get() {
+        return Some(instance);
+    }
+    let deadline = std::time::Instant::now() + timeout;
+    let poll = std::time::Duration::from_millis(100);
+    while std::time::Instant::now() < deadline {
+        tokio::time::sleep(poll).await;
+        if let Some(instance) = INSTANCE.get() {
+            return Some(instance);
+        }
+    }
+    None
+}
+
 /// One-time iSH boot. Mirrors `codex_ish_init` + the post-init setup calls in
 /// IshBridge.m. After this returns `Ok`, `run()` is safe to call and the
 /// codex_core exec hook has been installed.
@@ -163,7 +187,7 @@ const RUNTIME_SETUP_SCRIPT: &str = concat!(
     "chmod 1777 /tmp",
 );
 
-fn runtime_env() -> HashMap<String, String> {
+pub(crate) fn runtime_env() -> HashMap<String, String> {
     HashMap::from([
         (
             "PATH".to_string(),

@@ -990,9 +990,36 @@ struct LitterCodeBlockRenderer: CodeBlockRenderer {
             .background(configuration.theme.codeBlock.backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: configuration.theme.codeBlock.cornerRadius))
             .modifier(GlassRectModifier(cornerRadius: 8))
+            .modifier(CodeBlockTerminalContextMenu(code: configuration.code))
         } else {
             DefaultCodeBlockRenderer().makeBody(configuration: configuration)
                 .modifier(GlassRectModifier(cornerRadius: 8))
+                .modifier(CodeBlockTerminalContextMenu(code: configuration.code))
+        }
+    }
+}
+
+/// Adds a "Run in terminal" + "Copy" context menu to a chat code block.
+private struct CodeBlockTerminalContextMenu: ViewModifier {
+    let code: String
+
+    func body(content: Content) -> some View {
+        content.contextMenu {
+            Button {
+                UIPasteboard.general.string = code
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+            if AppModel.shared.store.activeTerminalId() != nil {
+                Button {
+                    let bytes = Data(code.utf8)
+                    Task {
+                        _ = try? await AppModel.shared.store.writeToActiveTerminal(bytes: bytes)
+                    }
+                } label: {
+                    Label("Run in Terminal", systemImage: "terminal")
+                }
+            }
         }
     }
 }

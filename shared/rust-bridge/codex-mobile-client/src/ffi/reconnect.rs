@@ -593,6 +593,8 @@ mod tests {
             pending_user_inputs: Vec::new(),
             pending_user_input_seeds: HashMap::new(),
             voice_session: AppVoiceSessionSnapshot::default(),
+            terminal_sessions: Vec::new(),
+            active_terminal_id: None,
         }
     }
 

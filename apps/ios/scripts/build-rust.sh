@@ -143,6 +143,17 @@ fi
 
 "$REPO_DIR/tools/scripts/update-alleycat-main.sh" --shared
 
+# libghostty static libs + headers must exist before the Rust crate is
+# compiled (codex-mobile-client links against them). Build them on demand
+# when missing so this script is self-sufficient for CI workflows that
+# invoke it directly (without going through the Makefile's stamp dep).
+LIBGHOSTTY_DEVICE_LIB="$REPO_DIR/apps/ios/GeneratedRust/ghostty-build/ios-device/libghostty.a"
+LIBGHOSTTY_SIM_LIB="$REPO_DIR/apps/ios/GeneratedRust/ghostty-build/ios-sim/libghostty.a"
+if [ ! -f "$LIBGHOSTTY_DEVICE_LIB" ] || [ ! -f "$LIBGHOSTTY_SIM_LIB" ]; then
+  echo "==> libghostty artifacts missing; building (use 'make ghostty-ios' to invoke with stamp caching)"
+  "$REPO_DIR/apps/ios/scripts/build-ghostty.sh"
+fi
+
 ensure_host_llvm_on_path() {
   local candidate
   local llvm_candidates=(

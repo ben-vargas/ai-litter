@@ -35,6 +35,7 @@ struct HomeDashboardView: View {
     /// Optional: surface an "Apps" button alongside Settings. Wired by the
     /// hosting navigation when a "Saved Apps" launcher should be exposed.
     var onShowApps: (() -> Void)? = nil
+    var onShowTerminal: (() -> Void)? = nil
     let onPinThread: (ThreadKey) -> Void
     let onUnpinThread: (ThreadKey) -> Void
     let onHideThread: (ThreadKey) -> Void
@@ -298,6 +299,13 @@ struct HomeDashboardView: View {
                             .foregroundColor(LitterTheme.textSecondary)
                     }
                     .accessibilityLabel("Apps")
+                }
+                if let onShowTerminal {
+                    Button(action: onShowTerminal) {
+                        Image(systemName: "terminal")
+                            .foregroundColor(LitterTheme.textSecondary)
+                    }
+                    .accessibilityLabel("Terminal")
                 }
             }
         }
